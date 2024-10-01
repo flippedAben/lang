@@ -3,8 +3,8 @@ use std::fs;
 use std::io::{self, Write};
 use std::process::ExitCode;
 
-use interpreter::{interpret, interpret_expr, Environment};
-use parser::{parse, parse_expr};
+use interpreter::interpret;
+use parser::parse;
 use scanner::scan;
 
 mod interpreter;

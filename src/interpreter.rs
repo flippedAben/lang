@@ -3,7 +3,7 @@ use std::{
     cell::RefCell,
     collections::HashMap,
     error::Error,
-    fmt::{self, format, Write},
+    fmt::{self},
     rc::Rc,
 };
 
