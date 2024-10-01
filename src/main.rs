@@ -24,57 +24,6 @@ fn main() -> ExitCode {
     let filename = &args[2];
 
     match command.as_str() {
-        "tokenize" => {
-            let file_contents = fs::read_to_string(filename).unwrap();
-
-            let (tokens, return_code) = scan(file_contents);
-            for token in tokens {
-                println!("{}", token);
-            }
-            ExitCode::from(return_code)
-        }
-        "parse" => {
-            let file_contents = fs::read_to_string(filename).unwrap();
-
-            let (tokens, return_code) = scan(file_contents);
-            if return_code > 0 {
-                return ExitCode::from(return_code);
-            }
-            match parse_expr(&tokens, 0) {
-                Ok((expr, _)) => {
-                    println!("{:}", expr);
-                    ExitCode::SUCCESS
-                }
-                Err(e) => {
-                    eprintln!("{}", e);
-                    ExitCode::from(65)
-                }
-            }
-        }
-        "evaluate" => {
-            let file_contents = fs::read_to_string(filename).unwrap();
-            let (tokens, return_code) = scan(file_contents);
-            if return_code > 0 {
-                return ExitCode::from(return_code);
-            }
-            let environment = Environment::new();
-            match parse_expr(&tokens, 0) {
-                Ok((expr, _)) => match interpret_expr(expr, environment) {
-                    Ok(value) => {
-                        println!("{}", value);
-                        ExitCode::SUCCESS
-                    }
-                    Err(e) => {
-                        eprintln!("{}", e);
-                        ExitCode::from(70)
-                    }
-                },
-                Err(e) => {
-                    eprintln!("{}", e);
-                    ExitCode::from(65)
-                }
-            }
-        }
         "run" => {
             let file_contents = fs::read_to_string(filename).unwrap();
             let (tokens, return_code) = scan(file_contents);
