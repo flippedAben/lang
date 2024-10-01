@@ -1,3 +1,4 @@
+print "=== block, scope ===";
 {
   var bar = "outer bar";
   var world = "outer world";
@@ -11,6 +12,7 @@
   print world;
 }
 
+print "=== if, else ===";
 var x = 1;
 if x == 1 {
   print "x is 1";
@@ -23,13 +25,20 @@ if y == 0 {
   print "y is 0";
 }
 
+print "=== or, and ===";
 print "hi" or 2;
 print nil or "yes";
 print nil or nil or "yes yes"; 
 print nil and "never";
 
-var z = 1;
-while z < 3 {
-  print z;
-  z = z + 1;
+print "=== while: fibonnaci ===";
+var a = 0;
+var b = 1;
+var temp;
+
+while a < 100 {
+  temp = a + b;
+  a = b;
+  b = temp;
+  print a;
 }
