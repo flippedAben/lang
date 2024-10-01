@@ -26,22 +26,21 @@ fn main() -> ExitCode {
     match command.as_str() {
         "run" => {
             let file_contents = fs::read_to_string(filename).unwrap();
-            let (tokens, return_code) = scan(file_contents);
-            if return_code > 0 {
-                return ExitCode::from(return_code);
-            }
-            let (program, has_error) = parse(tokens);
-            println!("{:?}", program);
-            if has_error {
-                ExitCode::from(65)
-            } else {
-                match interpret(program) {
-                    Ok(_) => ExitCode::SUCCESS,
-                    Err(e) => {
-                        eprintln!("{}", e);
-                        ExitCode::from(70)
+            match scan(file_contents) {
+                Ok(tokens) => match parse(tokens) {
+                    Ok(program) => {
+                        println!("{:?}", program);
+                        match interpret(program) {
+                            Ok(_) => ExitCode::SUCCESS,
+                            Err(e) => {
+                                eprintln!("{}", e);
+                                ExitCode::from(70)
+                            }
+                        }
                     }
-                }
+                    Err(_) => ExitCode::from(65),
+                },
+                Err(_) => ExitCode::from(60),
             }
         }
         _ => {

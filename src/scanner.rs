@@ -4,7 +4,7 @@ use std::fmt;
 use crate::{token::Token, token_type::TokenType};
 
 #[derive(Debug)]
-enum ScanError {
+pub enum ScanError {
     UnexpectedCharacter(usize, char),
     UnterminatedString(usize),
 }
@@ -24,11 +24,11 @@ impl fmt::Display for ScanError {
     }
 }
 
-pub fn scan(source: String) -> (Vec<Token>, u8) {
+pub fn scan(source: String) -> Result<Vec<Token>, ScanError> {
     let mut tokens = Vec::new();
     let mut position = 0;
-    let mut return_code: u8 = 0;
     let mut line = 1;
+    let mut error: Option<ScanError> = None;
     while position < source.len() {
         match scan_token(&source, position, line) {
             Ok((token, next_position, next_line)) => {
@@ -39,24 +39,23 @@ pub fn scan(source: String) -> (Vec<Token>, u8) {
                 line = next_line;
             }
             Err(e) => {
-                return_code = 65;
                 eprintln!("{}", e);
+                error = Some(e);
                 position += 1;
-
-                match e {
-                    ScanError::UnterminatedString(_) => break,
-                    _ => continue,
-                }
             }
         }
     }
+
     tokens.push(Token {
         token_type: TokenType::Eof,
         lexeme: "".to_string(),
         line: line,
     });
 
-    (tokens, return_code)
+    match error {
+        Some(error) => Err(error),
+        None => Ok(tokens),
+    }
 }
 
 fn scan_token(

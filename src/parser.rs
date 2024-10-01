@@ -103,10 +103,10 @@ pub enum Stmt {
     While(Expr, Box<Stmt>),
 }
 
-pub fn parse(tokens: Vec<Token>) -> (Vec<Stmt>, bool) {
+pub fn parse(tokens: Vec<Token>) -> Result<Vec<Stmt>, ParseError> {
     let mut statements = Vec::new();
     let mut position: usize = 0;
-    let mut error = false;
+    let mut error: Option<ParseError> = None;
     while position < tokens.len() {
         match tokens[position].token_type {
             TokenType::Eof => break,
@@ -116,14 +116,17 @@ pub fn parse(tokens: Vec<Token>) -> (Vec<Stmt>, bool) {
                     position = next_position;
                 }
                 Err(e) => {
-                    error = true;
                     eprintln!("{}", e);
+                    error = Some(e);
                     position = synchronize(&tokens, position + 1);
                 }
             },
         }
     }
-    (statements, error)
+    match error {
+        Some(error) => Err(error),
+        None => Ok(statements),
+    }
 }
 
 fn synchronize(tokens: &Vec<Token>, mut position: usize) -> usize {
