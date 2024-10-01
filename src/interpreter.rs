@@ -1,5 +1,11 @@
 use crate::parser::{Expr, Operation, Stmt};
-use std::{cell::RefCell, collections::HashMap, error::Error, fmt, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    error::Error,
+    fmt::{self, format, Write},
+    rc::Rc,
+};
 
 #[derive(Debug)]
 pub enum RuntimeError {
@@ -114,16 +120,17 @@ impl Environment {
     }
 }
 
-pub fn interpret(program: Vec<Stmt>) -> Result<(), RuntimeError> {
-    interpret_stmt_block(&program, Environment::new())
+pub fn interpret(program: Vec<Stmt>, out: &mut Option<String>) -> Result<(), RuntimeError> {
+    interpret_stmt_block(&program, Environment::new(), out)
 }
 
 pub fn interpret_stmt_block(
     program: &Vec<Stmt>,
     environment: Rc<RefCell<Environment>>,
+    out: &mut Option<String>,
 ) -> Result<(), RuntimeError> {
     for stmt in program.iter() {
-        interpret_stmt(stmt, environment.clone())?
+        interpret_stmt(stmt, environment.clone(), out)?
     }
     Ok(())
 }
@@ -131,6 +138,7 @@ pub fn interpret_stmt_block(
 pub fn interpret_stmt(
     stmt: &Stmt,
     environment: Rc<RefCell<Environment>>,
+    out: &mut Option<String>,
 ) -> Result<(), RuntimeError> {
     match stmt {
         Stmt::Expression(expr) => {
@@ -138,7 +146,12 @@ pub fn interpret_stmt(
         }
         Stmt::Print(expr) => {
             let value = interpret_expr(&expr, environment.clone())?;
-            println!("{}", value);
+            match out {
+                Some(out) => {
+                    out.push_str(&format!("{}\n", value));
+                }
+                None => println!("{}", value),
+            }
         }
         Stmt::Var(name, expr) => match expr {
             Some(expr) => {
@@ -157,20 +170,20 @@ pub fn interpret_stmt(
                 map: HashMap::new(),
                 enclosing: Some(environment.clone()),
             }));
-            interpret_stmt_block(program, next_environment)?
+            interpret_stmt_block(program, next_environment, out)?
         }
         Stmt::If(expr, if_stmt, else_stmt) => {
             if interpret_expr(&expr, environment.clone())?.to_bool() {
-                interpret_stmt(if_stmt, environment.clone())?
+                interpret_stmt(if_stmt, environment.clone(), out)?
             } else {
                 if let Some(else_stmt) = else_stmt {
-                    interpret_stmt(else_stmt, environment.clone())?
+                    interpret_stmt(else_stmt, environment.clone(), out)?
                 }
             }
         }
         Stmt::While(expr, stmt) => {
             while interpret_expr(&expr, environment.clone())?.to_bool() {
-                interpret_stmt(stmt, environment.clone())?
+                interpret_stmt(stmt, environment.clone(), out)?
             }
         }
     }

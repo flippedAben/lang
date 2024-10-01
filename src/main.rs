@@ -26,26 +26,62 @@ fn main() -> ExitCode {
     match command.as_str() {
         "run" => {
             let file_contents = fs::read_to_string(filename).unwrap();
-            match scan(file_contents) {
-                Ok(tokens) => match parse(tokens) {
-                    Ok(program) => {
-                        println!("{:?}", program);
-                        match interpret(program) {
-                            Ok(_) => ExitCode::SUCCESS,
-                            Err(e) => {
-                                eprintln!("{}", e);
-                                ExitCode::from(70)
-                            }
-                        }
-                    }
-                    Err(_) => ExitCode::from(65),
-                },
-                Err(_) => ExitCode::from(60),
-            }
+            run(file_contents, &mut None)
         }
         _ => {
-            writeln!(io::stderr(), "Unknown command: {}", command).unwrap();
+            eprintln!("Unknown command: {}", command);
             return ExitCode::from(2);
+        }
+    }
+}
+
+fn run(text: String, out: &mut Option<String>) -> ExitCode {
+    match scan(text) {
+        Ok(tokens) => match parse(tokens) {
+            Ok(program) => {
+                println!("{:?}", program);
+                match interpret(program, out) {
+                    Ok(_) => ExitCode::SUCCESS,
+                    Err(e) => {
+                        eprintln!("{}", e);
+                        ExitCode::from(70)
+                    }
+                }
+            }
+            Err(_) => ExitCode::from(65),
+        },
+        Err(_) => ExitCode::from(60),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::run;
+
+    #[test]
+    fn block_scope_environment() {
+        let mut out = Some(String::new());
+        let program = r#"
+        {
+            var bar = "outer bar";
+            var world = "outer world";
+            {
+                bar = "modified bar";
+                var world = "inner world";
+                print bar;
+                print world;
+            }
+            print bar;
+            print world;
+        }"#;
+        run(program.to_string(), &mut out);
+        let expected = r#"modified bar
+inner world
+modified bar
+outer world
+"#;
+        if let Some(out) = out {
+            assert_eq!(out, expected);
         }
     }
 }
