@@ -16,7 +16,7 @@ mod token_type;
 fn main() -> ExitCode {
     let args: Vec<String> = env::args().collect();
     if args.len() < 3 {
-        writeln!(io::stderr(), "Usage: {} tokenize <filename>", args[0]).unwrap();
+        writeln!(io::stderr(), "Usage: {} run <filename>", args[0]).unwrap();
         return ExitCode::from(2);
     }
 

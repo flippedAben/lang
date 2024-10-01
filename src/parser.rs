@@ -12,7 +12,7 @@ pub enum ParseError {
     MissingExprSemicolon(usize),
     MissingVarSemicolon(usize),
     InvalidAssignmentLValue(usize),
-    ExpectBlockClosingBrace(usize),
+    MissingBlockClosingBrace(usize),
 }
 
 impl Error for ParseError {}
@@ -45,7 +45,7 @@ impl fmt::Display for ParseError {
             ParseError::InvalidAssignmentLValue(line) => {
                 write!(f, "[line {}] Invalid assignment target.", line)
             }
-            ParseError::ExpectBlockClosingBrace(line) => {
+            ParseError::MissingBlockClosingBrace(line) => {
                 write!(f, "[line {}] Expect '}}' after block.", line)
             }
         }
@@ -128,20 +128,7 @@ pub enum Stmt {
     Print(Expr),
     Var(String, Option<Expr>),
     Block(Vec<Stmt>),
-}
-
-impl fmt::Display for Stmt {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Stmt::Expression(expr) => write!(f, "{}", expr),
-            Stmt::Print(expr) => write!(f, "{}", expr),
-            Stmt::Var(name, expr) => match expr {
-                Some(expr) => write!(f, "{}: {}", name, expr),
-                None => write!(f, "{}: null", name),
-            },
-            Stmt::Block(vec) => write!(f, "{:?}", vec),
-        }
-    }
+    If(Expr, Box<Stmt>, Option<Box<Stmt>>),
 }
 
 pub fn parse(tokens: Vec<Token>) -> (Vec<Stmt>, bool) {
@@ -247,9 +234,24 @@ fn parse_stmt(tokens: &Vec<Token>, position: usize) -> Result<(Stmt, usize), Par
                     }
                 }
             }
-            Err(ParseError::ExpectBlockClosingBrace(
+            Err(ParseError::MissingBlockClosingBrace(
                 tokens.last().unwrap().line,
             ))
+        }
+        TokenType::If => {
+            let (expr, position) = parse_expr(tokens, position + 1)?;
+            let (if_stmt, position) = parse_stmt(tokens, position)?;
+
+            match tokens[position].token_type {
+                TokenType::Else => {
+                    let (else_stmt, position) = parse_stmt(tokens, position + 1)?;
+                    Ok((
+                        Stmt::If(expr, Box::new(if_stmt), Some(Box::new(else_stmt))),
+                        position,
+                    ))
+                }
+                _ => Ok((Stmt::If(expr, Box::new(if_stmt), None), position)),
+            }
         }
         _ => {
             let (expr, next_position) = parse_expr(&tokens, position)?;

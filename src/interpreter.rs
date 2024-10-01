@@ -150,6 +150,15 @@ pub fn interpret_stmt(
                 }));
                 interpret_stmt(program, next_environment)?
             }
+            Stmt::If(expr, if_stmt, else_stmt) => {
+                if interpret_expr(expr, environment.clone())?.to_bool() {
+                    interpret_stmt(vec![*if_stmt], environment.clone())? // TODO: shouldn't be a Vec<Stmt>
+                } else {
+                    if let Some(else_stmt) = else_stmt {
+                        interpret_stmt(vec![*else_stmt], environment.clone())?
+                    }
+                }
+            }
         }
     }
     Ok(())
