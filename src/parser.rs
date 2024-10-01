@@ -14,6 +14,8 @@ pub enum ParseError {
     InvalidAssignmentLValue(usize),
     MissingBlockClosingBrace(usize),
     MissingWhileStartingBrace(usize),
+    MissingIfStartingBrace(usize),
+    MissingElseStartingBrace(usize),
 }
 
 impl Error for ParseError {}
@@ -51,6 +53,12 @@ impl fmt::Display for ParseError {
             }
             ParseError::MissingWhileStartingBrace(line) => {
                 write!(f, "[line {}] Expect '{{' after 'while' keyword.", line)
+            }
+            ParseError::MissingIfStartingBrace(line) => {
+                write!(f, "[line {}] Expect '{{' after 'if' keyword.", line)
+            }
+            ParseError::MissingElseStartingBrace(line) => {
+                write!(f, "[line {}] Expect '{{' after 'else' keyword.", line)
             }
         }
     }
@@ -207,17 +215,25 @@ fn parse_stmt(tokens: &Vec<Token>, position: usize) -> Result<(Stmt, usize), Par
         }
         TokenType::If => {
             let (expr, position) = parse_expr(tokens, position + 1)?;
-            let (if_stmt, position) = parse_stmt(tokens, position)?;
 
             match tokens[position].token_type {
-                TokenType::Else => {
-                    let (else_stmt, position) = parse_stmt(tokens, position + 1)?;
-                    Ok((
-                        Stmt::If(expr, Box::new(if_stmt), Some(Box::new(else_stmt))),
-                        position,
-                    ))
+                TokenType::LeftBrace => {
+                    let (if_stmt, position) = parse_stmt(tokens, position)?;
+                    match tokens[position].token_type {
+                        TokenType::Else => match tokens[position + 1].token_type {
+                            TokenType::LeftBrace => {
+                                let (else_stmt, position) = parse_stmt(tokens, position + 1)?;
+                                Ok((
+                                    Stmt::If(expr, Box::new(if_stmt), Some(Box::new(else_stmt))),
+                                    position,
+                                ))
+                            }
+                            _ => Err(ParseError::MissingElseStartingBrace(tokens[position].line)),
+                        },
+                        _ => Ok((Stmt::If(expr, Box::new(if_stmt), None), position)),
+                    }
                 }
-                _ => Ok((Stmt::If(expr, Box::new(if_stmt), None), position)),
+                _ => Err(ParseError::MissingIfStartingBrace(tokens[position].line)),
             }
         }
         TokenType::While => {
