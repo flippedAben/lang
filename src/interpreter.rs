@@ -115,49 +115,62 @@ impl Environment {
 }
 
 pub fn interpret(program: Vec<Stmt>) -> Result<(), RuntimeError> {
-    interpret_stmt(program, Environment::new())
+    interpret_stmt_block(&program, Environment::new())
+}
+
+pub fn interpret_stmt_block(
+    program: &Vec<Stmt>,
+    environment: Rc<RefCell<Environment>>,
+) -> Result<(), RuntimeError> {
+    for stmt in program.iter() {
+        interpret_stmt(stmt, environment.clone())?
+    }
+    Ok(())
 }
 
 pub fn interpret_stmt(
-    program: Vec<Stmt>,
+    stmt: &Stmt,
     environment: Rc<RefCell<Environment>>,
 ) -> Result<(), RuntimeError> {
-    for stmt in program {
-        match stmt {
-            Stmt::Expression(expr) => {
-                interpret_expr(expr, environment.clone())?;
+    match stmt {
+        Stmt::Expression(expr) => {
+            interpret_expr(&expr, environment.clone())?;
+        }
+        Stmt::Print(expr) => {
+            let value = interpret_expr(&expr, environment.clone())?;
+            println!("{}", value);
+        }
+        Stmt::Var(name, expr) => match expr {
+            Some(expr) => {
+                let value = interpret_expr(&expr, environment.clone())?;
+                environment.borrow_mut().map.insert(name.to_string(), value);
             }
-            Stmt::Print(expr) => {
-                let value = interpret_expr(expr, environment.clone())?;
-                println!("{}", value);
+            None => {
+                environment
+                    .borrow_mut()
+                    .map
+                    .insert(name.to_string(), Value::None);
             }
-            Stmt::Var(name, expr) => match expr {
-                Some(expr) => {
-                    let value = interpret_expr(expr, environment.clone())?;
-                    environment.borrow_mut().map.insert(name.to_string(), value);
+        },
+        Stmt::Block(program) => {
+            let next_environment = Rc::new(RefCell::new(Environment {
+                map: HashMap::new(),
+                enclosing: Some(environment.clone()),
+            }));
+            interpret_stmt_block(program, next_environment)?
+        }
+        Stmt::If(expr, if_stmt, else_stmt) => {
+            if interpret_expr(&expr, environment.clone())?.to_bool() {
+                interpret_stmt(if_stmt, environment.clone())?
+            } else {
+                if let Some(else_stmt) = else_stmt {
+                    interpret_stmt(else_stmt, environment.clone())?
                 }
-                None => {
-                    environment
-                        .borrow_mut()
-                        .map
-                        .insert(name.to_string(), Value::None);
-                }
-            },
-            Stmt::Block(program) => {
-                let next_environment = Rc::new(RefCell::new(Environment {
-                    map: HashMap::new(),
-                    enclosing: Some(environment.clone()),
-                }));
-                interpret_stmt(program, next_environment)?
             }
-            Stmt::If(expr, if_stmt, else_stmt) => {
-                if interpret_expr(expr, environment.clone())?.to_bool() {
-                    interpret_stmt(vec![*if_stmt], environment.clone())? // TODO: shouldn't be a Vec<Stmt>
-                } else {
-                    if let Some(else_stmt) = else_stmt {
-                        interpret_stmt(vec![*else_stmt], environment.clone())?
-                    }
-                }
+        }
+        Stmt::While(expr, stmt) => {
+            while interpret_expr(&expr, environment.clone())?.to_bool() {
+                interpret_stmt(stmt, environment.clone())?
             }
         }
     }
@@ -165,16 +178,16 @@ pub fn interpret_stmt(
 }
 
 pub fn interpret_expr(
-    expr: Expr,
+    expr: &Expr,
     environment: Rc<RefCell<Environment>>,
 ) -> Result<Value, RuntimeError> {
     match expr {
         Expr::Group(expr) => {
-            let value = interpret_expr(*expr, environment)?;
+            let value = interpret_expr(expr, environment)?;
             Ok(value)
         }
         Expr::Unary(operation, expr) => {
-            let value = interpret_expr(*expr, environment)?;
+            let value = interpret_expr(expr, environment)?;
             match operation {
                 Operation::Not => Ok(Value::Boolean(!value.to_bool())),
                 Operation::Negate => match value {
@@ -185,8 +198,8 @@ pub fn interpret_expr(
             }
         }
         Expr::Binary(operation, left_expr, right_expr) => {
-            let left = interpret_expr(*left_expr, environment.clone())?;
-            let right = interpret_expr(*right_expr, environment)?;
+            let left = interpret_expr(left_expr, environment.clone())?;
+            let right = interpret_expr(right_expr, environment)?;
             match operation {
                 Operation::Add => match (left, right) {
                     (Value::String(x), Value::String(y)) => {
@@ -235,7 +248,7 @@ pub fn interpret_expr(
             }
         }
         Expr::BinaryLogical(op, left_expr, right_expr) => {
-            let left = interpret_expr(*left_expr, environment.clone())?;
+            let left = interpret_expr(left_expr, environment.clone())?;
             match op {
                 Operation::LogicalOr => {
                     if left.to_bool() {
@@ -249,18 +262,18 @@ pub fn interpret_expr(
                 }
                 _ => unreachable!(),
             }
-            interpret_expr(*right_expr, environment)
+            interpret_expr(right_expr, environment)
         }
         Expr::None => Ok(Value::None),
-        Expr::String(x) => Ok(Value::String(x)),
-        Expr::Number(x) => Ok(Value::Number(x)),
-        Expr::Boolean(x) => Ok(Value::Boolean(x)),
+        Expr::String(x) => Ok(Value::String(x.to_string())),
+        Expr::Number(x) => Ok(Value::Number(*x)),
+        Expr::Boolean(x) => Ok(Value::Boolean(*x)),
         Expr::Variable(name) => match environment.borrow().get(&name) {
             Some(value) => Ok(value.clone()), // TODO: no clone
             None => Err(RuntimeError::UndefinedVariable(name.to_string())),
         },
         Expr::Assign(name, expr) => {
-            let value = interpret_expr(*expr, environment.clone())?;
+            let value = interpret_expr(expr, environment.clone())?;
             match environment.borrow_mut().try_set(&name, value.clone()) {
                 Some(_) => Ok(value),
                 None => Err(RuntimeError::UndefinedVariable(name.to_string())),

@@ -13,6 +13,7 @@ pub enum ParseError {
     MissingVarSemicolon(usize),
     InvalidAssignmentLValue(usize),
     MissingBlockClosingBrace(usize),
+    MissingWhileStartingBrace(usize),
 }
 
 impl Error for ParseError {}
@@ -47,6 +48,9 @@ impl fmt::Display for ParseError {
             }
             ParseError::MissingBlockClosingBrace(line) => {
                 write!(f, "[line {}] Expect '}}' after block.", line)
+            }
+            ParseError::MissingWhileStartingBrace(line) => {
+                write!(f, "[line {}] Expect '{{' after 'while' keyword.", line)
             }
         }
     }
@@ -91,6 +95,7 @@ pub enum Stmt {
     Var(String, Option<Expr>),
     Block(Vec<Stmt>),
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),
+    While(Expr, Box<Stmt>),
 }
 
 pub fn parse(tokens: Vec<Token>) -> (Vec<Stmt>, bool) {
@@ -213,6 +218,16 @@ fn parse_stmt(tokens: &Vec<Token>, position: usize) -> Result<(Stmt, usize), Par
                     ))
                 }
                 _ => Ok((Stmt::If(expr, Box::new(if_stmt), None), position)),
+            }
+        }
+        TokenType::While => {
+            let (expr, position) = parse_expr(tokens, position + 1)?;
+            match tokens[position].token_type {
+                TokenType::LeftBrace => {
+                    let (stmt, position) = parse_stmt(tokens, position)?;
+                    Ok((Stmt::While(expr, Box::new(stmt)), position))
+                }
+                _ => Err(ParseError::MissingWhileStartingBrace(tokens[position].line)),
             }
         }
         _ => {

@@ -27,3 +27,9 @@ print "hi" or 2;
 print nil or "yes";
 print nil or nil or "yes yes"; 
 print nil and "never";
+
+var z = 1;
+while z < 3 {
+  print z;
+  z = z + 1;
+}
