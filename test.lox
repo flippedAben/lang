@@ -22,3 +22,8 @@ var y = 0;
 if y == 0 {
   print "y is 0";
 }
+
+print "hi" or 2;
+print nil or "yes";
+print nil or nil or "yes yes"; 
+print nil and "never";

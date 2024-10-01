@@ -66,25 +66,8 @@ pub enum Operation {
     GreaterEqual,
     Less,
     LessEqual,
-}
-
-impl fmt::Display for Operation {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Operation::Not => write!(f, "!"),
-            Operation::Negate => write!(f, "-"),
-            Operation::Add => write!(f, "+"),
-            Operation::Subtract => write!(f, "-"),
-            Operation::Divide => write!(f, "/"),
-            Operation::Multiply => write!(f, "*"),
-            Operation::Equal => write!(f, "=="),
-            Operation::NotEqual => write!(f, "!="),
-            Operation::Greater => write!(f, ">"),
-            Operation::GreaterEqual => write!(f, ">="),
-            Operation::Less => write!(f, "<"),
-            Operation::LessEqual => write!(f, "<="),
-        }
-    }
+    LogicalAnd,
+    LogicalOr,
 }
 
 #[derive(Debug)]
@@ -98,28 +81,7 @@ pub enum Expr {
     None,
     Variable(String),
     Assign(String, Box<Expr>),
-}
-
-impl fmt::Display for Expr {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Expr::Group(expr) => write!(f, "(group {})", expr),
-            Expr::Unary(op, expr) => write!(f, "({} {})", op, expr),
-            Expr::Binary(op, left, right) => write!(f, "({} {} {})", op, left, right),
-            Expr::String(s) => write!(f, "{}", s),
-            Expr::Number(x) => {
-                if x.fract() == 0.0 {
-                    write!(f, "{:.1}", x)
-                } else {
-                    write!(f, "{}", x)
-                }
-            }
-            Expr::Boolean(b) => write!(f, "{}", b),
-            Expr::None => write!(f, "nil"),
-            Expr::Variable(name) => write!(f, "{}", name),
-            Expr::Assign(name, expr) => write!(f, "{} = {}", name, expr),
-        }
-    }
+    BinaryLogical(Operation, Box<Expr>, Box<Expr>),
 }
 
 #[derive(Debug)]
@@ -270,7 +232,7 @@ pub fn parse_expr(tokens: &Vec<Token>, position: usize) -> Result<(Expr, usize),
 }
 
 fn parse_assignment(tokens: &Vec<Token>, position: usize) -> Result<(Expr, usize), ParseError> {
-    let (expr, position) = parse_equality(&tokens, position)?;
+    let (expr, position) = parse_logical_or(&tokens, position)?;
 
     match tokens[position].token_type {
         TokenType::Equal => match expr {
@@ -282,6 +244,46 @@ fn parse_assignment(tokens: &Vec<Token>, position: usize) -> Result<(Expr, usize
         },
         _ => Ok((expr, position)),
     }
+}
+
+fn parse_logical_or(tokens: &Vec<Token>, position: usize) -> Result<(Expr, usize), ParseError> {
+    let (mut expr, mut position) = parse_logical_and(&tokens, position)?;
+
+    loop {
+        assert!(position < tokens.len());
+
+        match tokens[position].token_type {
+            TokenType::Or => {
+                let (right, next_position) = parse_logical_or(tokens, position + 1)?;
+                expr = Expr::BinaryLogical(Operation::LogicalOr, Box::new(expr), Box::new(right));
+                position = next_position;
+            }
+            _ => {
+                break;
+            }
+        }
+    }
+    Ok((expr, position))
+}
+
+fn parse_logical_and(tokens: &Vec<Token>, position: usize) -> Result<(Expr, usize), ParseError> {
+    let (mut expr, mut position) = parse_equality(&tokens, position)?;
+
+    loop {
+        assert!(position < tokens.len());
+
+        match tokens[position].token_type {
+            TokenType::And => {
+                let (right, next_position) = parse_logical_and(tokens, position + 1)?;
+                expr = Expr::BinaryLogical(Operation::LogicalAnd, Box::new(expr), Box::new(right));
+                position = next_position;
+            }
+            _ => {
+                break;
+            }
+        }
+    }
+    Ok((expr, position))
 }
 
 fn parse_equality(tokens: &Vec<Token>, position: usize) -> Result<(Expr, usize), ParseError> {

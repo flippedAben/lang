@@ -48,9 +48,9 @@ impl fmt::Display for Value {
 }
 
 impl Value {
-    fn to_bool(self) -> bool {
+    fn to_bool(&self) -> bool {
         match self {
-            Value::Boolean(x) => x,
+            Value::Boolean(x) => *x,
             Value::None => false,
             _ => true,
         }
@@ -231,8 +231,25 @@ pub fn interpret_expr(
                     (Value::Number(x), Value::Number(y)) => Ok(Value::Boolean(x <= y)),
                     _ => Err(RuntimeError::ExpectNumberBinaryOperand),
                 },
-                _ => panic!("impossible"),
+                _ => unimplemented!(),
             }
+        }
+        Expr::BinaryLogical(op, left_expr, right_expr) => {
+            let left = interpret_expr(*left_expr, environment.clone())?;
+            match op {
+                Operation::LogicalOr => {
+                    if left.to_bool() {
+                        return Ok(left);
+                    }
+                }
+                Operation::LogicalAnd => {
+                    if !left.to_bool() {
+                        return Ok(left);
+                    }
+                }
+                _ => unreachable!(),
+            }
+            interpret_expr(*right_expr, environment)
         }
         Expr::None => Ok(Value::None),
         Expr::String(x) => Ok(Value::String(x)),

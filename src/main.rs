@@ -31,6 +31,7 @@ fn main() -> ExitCode {
                 return ExitCode::from(return_code);
             }
             let (program, has_error) = parse(tokens);
+            println!("{:?}", program);
             if has_error {
                 ExitCode::from(65)
             } else {
