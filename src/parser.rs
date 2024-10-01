@@ -64,7 +64,7 @@ impl fmt::Display for ParseError {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Operation {
     Not,
     Negate,
@@ -74,15 +74,12 @@ pub enum Operation {
     Multiply,
     Equal,
     NotEqual,
-    Greater,
-    GreaterEqual,
     Less,
-    LessEqual,
     LogicalAnd,
     LogicalOr,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expr {
     Group(Box<Expr>),
     Unary(Operation, Box<Expr>),
@@ -345,25 +342,38 @@ fn parse_equality(tokens: &Vec<Token>, position: usize) -> Result<(Expr, usize),
 fn parse_comparison(tokens: &Vec<Token>, position: usize) -> Result<(Expr, usize), ParseError> {
     let (mut expr, mut position) = parse_term(&tokens, position)?;
 
+    let mut prev_expr: Option<Expr> = None;
     loop {
         assert!(position < tokens.len());
 
+        // syntactic sugar
+        // a < b < c => a < b and b < c
+        // (< (< a b) c) => (and (< a b) (< b c))
         match tokens[position].token_type {
-            TokenType::Greater
-            | TokenType::GreaterEqual
-            | TokenType::Less
-            | TokenType::LessEqual => {
-                let (right, next_position) = parse_term(tokens, position + 1)?;
-                let op = match tokens[position].token_type {
-                    TokenType::Greater => Operation::Greater,
-                    TokenType::GreaterEqual => Operation::GreaterEqual,
-                    TokenType::Less => Operation::Less,
-                    TokenType::LessEqual => Operation::LessEqual,
-                    _ => panic!("Should never happen"),
-                };
-                expr = Expr::Binary(op, Box::new(expr), Box::new(right));
-                position = next_position;
-            }
+            TokenType::Less => match prev_expr {
+                None => {
+                    let (right, next_position) = parse_term(tokens, position + 1)?;
+                    expr = Expr::Binary(Operation::Less, Box::new(expr), Box::new(right.clone()));
+
+                    position = next_position;
+                    prev_expr = Some(right);
+                }
+                Some(prev_right) => {
+                    let (right, next_position) = parse_term(tokens, position + 1)?;
+                    expr = Expr::BinaryLogical(
+                        Operation::LogicalAnd,
+                        Box::new(expr),
+                        Box::new(Expr::Binary(
+                            Operation::Less,
+                            Box::new(prev_right),
+                            Box::new(right.clone()),
+                        )),
+                    );
+
+                    position = next_position;
+                    prev_expr = Some(right);
+                }
+            },
             _ => {
                 break;
             }

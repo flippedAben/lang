@@ -16,7 +16,7 @@ impl fmt::Display for RuntimeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             RuntimeError::ExpectNumberUnaryOperand => write!(f, "Operand must be a number."),
-            RuntimeError::ExpectNumberBinaryOperand => write!(f, "Operands must be a numbers."),
+            RuntimeError::ExpectNumberBinaryOperand => write!(f, "Operands must be numbers."),
             RuntimeError::DivisionByZero => write!(f, "Dividing by zero is undefined."),
             RuntimeError::ExpectNumberOrStringBinaryOperand => {
                 write!(f, "Operands must be two numbers or two strings.")
@@ -228,20 +228,8 @@ pub fn interpret_expr(
                 },
                 Operation::Equal => Ok(Value::Boolean(left.equals(right))),
                 Operation::NotEqual => Ok(Value::Boolean(!left.equals(right))),
-                Operation::Greater => match (left, right) {
-                    (Value::Number(x), Value::Number(y)) => Ok(Value::Boolean(x > y)),
-                    _ => Err(RuntimeError::ExpectNumberBinaryOperand),
-                },
-                Operation::GreaterEqual => match (left, right) {
-                    (Value::Number(x), Value::Number(y)) => Ok(Value::Boolean(x >= y)),
-                    _ => Err(RuntimeError::ExpectNumberBinaryOperand),
-                },
                 Operation::Less => match (left, right) {
                     (Value::Number(x), Value::Number(y)) => Ok(Value::Boolean(x < y)),
-                    _ => Err(RuntimeError::ExpectNumberBinaryOperand),
-                },
-                Operation::LessEqual => match (left, right) {
-                    (Value::Number(x), Value::Number(y)) => Ok(Value::Boolean(x <= y)),
                     _ => Err(RuntimeError::ExpectNumberBinaryOperand),
                 },
                 _ => unimplemented!(),
