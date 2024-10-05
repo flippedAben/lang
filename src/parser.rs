@@ -16,6 +16,8 @@ pub enum ParseError {
     MissingWhileStartingBrace(usize),
     MissingIfStartingBrace(usize),
     MissingElseStartingBrace(usize),
+    MissingCallRightParen(usize),
+    TooManyArgumentsInCall(usize),
 }
 
 impl Error for ParseError {}
@@ -60,6 +62,12 @@ impl fmt::Display for ParseError {
             ParseError::MissingElseStartingBrace(line) => {
                 write!(f, "[line {}] Expect '{{' after 'else' keyword.", line)
             }
+            ParseError::MissingCallRightParen(line) => {
+                write!(f, "[line {}] Expect ')' after function arguments.", line)
+            }
+            ParseError::TooManyArgumentsInCall(line) => {
+                write!(f, "[line {}] Expect <= 4 function arguments.", line)
+            }
         }
     }
 }
@@ -91,6 +99,7 @@ pub enum Expr {
     Variable(String),
     Assign(String, Box<Expr>),
     BinaryLogical(Operation, Box<Expr>, Box<Expr>),
+    Call(Box<Expr>, Vec<Expr>),
 }
 
 #[derive(Debug)]
@@ -138,7 +147,7 @@ fn synchronize(tokens: &Vec<Token>, mut position: usize) -> usize {
             | TokenType::For
             | TokenType::While
             | TokenType::Class
-            | TokenType::Fun
+            | TokenType::Fn
             | TokenType::Return
             | TokenType::Print => return position,
             TokenType::Semicolon => return position + 1,
@@ -446,7 +455,58 @@ fn parse_unary(tokens: &Vec<Token>, position: usize) -> Result<(Expr, usize), Pa
             };
             Ok((Expr::Unary(op, Box::new(expr)), next_position))
         }
-        _ => parse_primary(tokens, position),
+        _ => parse_call(tokens, position),
+    }
+}
+
+fn parse_call(tokens: &Vec<Token>, position: usize) -> Result<(Expr, usize), ParseError> {
+    let (mut expr, mut position) = parse_primary(tokens, position)?;
+    loop {
+        match &tokens[position].token_type {
+            TokenType::LeftParen => {
+                let mut args = Vec::new();
+
+                match &tokens[position + 1].token_type {
+                    TokenType::RightParen => {
+                        expr = Expr::Call(Box::new(expr), args);
+                        return Ok((expr, position + 1));
+                    }
+                    _ => {
+                        position = position + 2;
+                        loop {
+                            let (arg_expr, next_position) = parse_expr(tokens, position)?;
+                            args.push(arg_expr);
+                            position = next_position;
+                            if args.len() > 4 {
+                                return Err(ParseError::TooManyArgumentsInCall(
+                                    tokens[position].line,
+                                ));
+                            }
+
+                            match &tokens[position].token_type {
+                                TokenType::Comma => {
+                                    position += 1;
+                                }
+                                _ => break,
+                            }
+                        }
+
+                        match &tokens[position].token_type {
+                            TokenType::RightParen => {
+                                expr = Expr::Call(Box::new(expr), args);
+                                return Ok((expr, position + 1));
+                            }
+                            _ => {
+                                return Err(ParseError::MissingCallRightParen(
+                                    tokens[position].line,
+                                ))
+                            }
+                        }
+                    }
+                }
+            }
+            _ => return Ok((expr, position)),
+        }
     }
 }
 

@@ -280,5 +280,16 @@ pub fn interpret_expr(
                 None => Err(RuntimeError::UndefinedVariable(name.to_string())),
             }
         }
+        Expr::Call(expr, vec) => {
+            let callee = interpret_expr(expr, environment.clone())?;
+            let mut args = Vec::new();
+            for arg_expr in vec {
+                args.push(interpret_expr(arg_expr, environment.clone())?);
+            }
+            // TODO: function declarations
+            // LoxCallable function = (LoxCallable)callee;
+            // return function.call(this, arguments);
+            Ok(callee)
+        }
     }
 }

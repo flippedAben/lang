@@ -30,7 +30,7 @@ pub enum TokenType {
 
     // Keywords
     Let,
-    Fun,
+    Fn,
     Return,
     Class,
     This,

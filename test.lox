@@ -42,3 +42,5 @@ if a < b < c < d {
 if d < b < c < a {
   print "FAIL: d < b < c < a";
 }
+
+print "=== function calls ===";

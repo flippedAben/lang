@@ -200,7 +200,7 @@ fn scan_token(
                 std::str::from_utf8(source.as_bytes()).unwrap()[position..new_position].to_string();
             let token_type = match raw_text.as_str() {
                 "let" => TokenType::Let,
-                "fun" => TokenType::Fun,
+                "fn" => TokenType::Fn,
                 "return" => TokenType::Return,
                 "class" => TokenType::Class,
                 "this" => TokenType::This,
