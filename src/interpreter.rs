@@ -153,7 +153,7 @@ pub fn interpret_stmt(
                 None => println!("{}", value),
             }
         }
-        Stmt::Var(name, expr) => match expr {
+        Stmt::Let(name, expr) => match expr {
             Some(expr) => {
                 let value = interpret_expr(&expr, environment.clone())?;
                 environment.borrow_mut().map.insert(name.to_string(), value);

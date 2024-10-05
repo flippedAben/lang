@@ -199,7 +199,7 @@ fn scan_token(
             let raw_text =
                 std::str::from_utf8(source.as_bytes()).unwrap()[position..new_position].to_string();
             let token_type = match raw_text.as_str() {
-                "var" => TokenType::Var,
+                "let" => TokenType::Let,
                 "fun" => TokenType::Fun,
                 "return" => TokenType::Return,
                 "class" => TokenType::Class,

@@ -10,7 +10,7 @@ pub enum ParseError {
     ExpectedExpression(usize, String),
     MissingPrintSemicolon(usize),
     MissingExprSemicolon(usize),
-    MissingVarSemicolon(usize),
+    MissingLetSemicolon(usize),
     InvalidAssignmentLValue(usize),
     MissingBlockClosingBrace(usize),
     MissingWhileStartingBrace(usize),
@@ -42,7 +42,7 @@ impl fmt::Display for ParseError {
             ParseError::MissingExprSemicolon(line) => {
                 write!(f, "[line {}] Expect ';' after expression.", line)
             }
-            ParseError::MissingVarSemicolon(line) => {
+            ParseError::MissingLetSemicolon(line) => {
                 write!(f, "[line {}] Expect ';' after variable declaration.", line)
             }
             ParseError::InvalidAssignmentLValue(line) => {
@@ -97,7 +97,7 @@ pub enum Expr {
 pub enum Stmt {
     Expression(Expr),
     Print(Expr),
-    Var(String, Option<Expr>),
+    Let(String, Option<Expr>),
     Block(Vec<Stmt>),
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),
     While(Expr, Box<Stmt>),
@@ -133,7 +133,7 @@ fn synchronize(tokens: &Vec<Token>, mut position: usize) -> usize {
     while position < tokens.len() {
         match tokens[position].token_type {
             TokenType::Eof
-            | TokenType::Var
+            | TokenType::Let
             | TokenType::If
             | TokenType::For
             | TokenType::While
@@ -150,7 +150,7 @@ fn synchronize(tokens: &Vec<Token>, mut position: usize) -> usize {
 
 fn parse_decl(tokens: &Vec<Token>, position: usize) -> Result<(Stmt, usize), ParseError> {
     match tokens[position].token_type {
-        TokenType::Var => {
+        TokenType::Let => {
             assert!(position + 1 < tokens.len());
             match &tokens[position + 1].token_type {
                 TokenType::Identifier(name) => {
@@ -161,15 +161,15 @@ fn parse_decl(tokens: &Vec<Token>, position: usize) -> Result<(Stmt, usize), Par
 
                             match &tokens[next_position].token_type {
                                 TokenType::Semicolon => {
-                                    Ok((Stmt::Var(name.to_string(), Some(expr)), next_position + 1))
+                                    Ok((Stmt::Let(name.to_string(), Some(expr)), next_position + 1))
                                 }
                                 _ => {
-                                    Err(ParseError::MissingVarSemicolon(tokens[next_position].line))
+                                    Err(ParseError::MissingLetSemicolon(tokens[next_position].line))
                                 }
                             }
                         }
                         TokenType::Semicolon => {
-                            Ok((Stmt::Var(name.to_string(), None), position + 3))
+                            Ok((Stmt::Let(name.to_string(), None), position + 3))
                         }
                         _ => panic!("not a valid next symbol for var. Should be = or ;"),
                     }

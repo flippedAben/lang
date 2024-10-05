@@ -29,7 +29,7 @@ pub enum TokenType {
     Number(f64),
 
     // Keywords
-    Var,
+    Let,
     Fun,
     Return,
     Class,

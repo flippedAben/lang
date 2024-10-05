@@ -63,11 +63,11 @@ mod tests {
         let mut out = Some(String::new());
         let program = r#"
         {
-            var bar = "outer bar";
-            var world = "outer world";
+            let bar = "outer bar";
+            let world = "outer world";
             {
                 bar = "modified bar";
-                var world = "inner world";
+                let world = "inner world";
                 print bar;
                 print world;
             }
