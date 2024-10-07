@@ -1,13 +1,14 @@
 use crate::token::Token;
 use crate::token_type::TokenType;
-use core::fmt;
+use core::{fmt, panic};
 use std::error::Error;
+use std::rc::Rc;
 
 #[derive(Debug)]
 pub enum ParseError {
     UnexpectedEof(usize),
     UnmatchedParenthesis(usize),
-    ExpectedExpression(usize, String),
+    InvalidPrimaryToken(usize, String),
     MissingPrintSemicolon(usize),
     MissingExprSemicolon(usize),
     MissingLetSemicolon(usize),
@@ -18,6 +19,9 @@ pub enum ParseError {
     MissingElseStartingBrace(usize),
     MissingCallRightParen(usize),
     TooManyArgumentsInCall(usize),
+    TooManyParametersInFnDecl(usize),
+    MissingFnLeftBrace(usize),
+    InvalidFnCallArg(usize),
 }
 
 impl Error for ParseError {}
@@ -31,10 +35,10 @@ impl fmt::Display for ParseError {
             ParseError::UnmatchedParenthesis(line) => {
                 write!(f, "[line {}] Error: unmatched ')'", line)
             }
-            ParseError::ExpectedExpression(line, lexeme) => {
+            ParseError::InvalidPrimaryToken(line, lexeme) => {
                 write!(
                     f,
-                    "[line {}] Error at '{}': Expect expression.",
+                    "[line {}] Error at '{}': invalid primary token.",
                     line, lexeme
                 )
             }
@@ -66,7 +70,28 @@ impl fmt::Display for ParseError {
                 write!(f, "[line {}] Expect ')' after function arguments.", line)
             }
             ParseError::TooManyArgumentsInCall(line) => {
-                write!(f, "[line {}] Expect <= 4 function arguments.", line)
+                write!(f, "[line {}] Expect <= 4 function call arguments.", line)
+            }
+            ParseError::TooManyParametersInFnDecl(line) => {
+                write!(
+                    f,
+                    "[line {}] Expect <= 4 function declaration parameters.",
+                    line
+                )
+            }
+            ParseError::MissingFnLeftBrace(line) => {
+                write!(
+                    f,
+                    "[line {}] Expect '{{' after function parameter declaration.",
+                    line
+                )
+            }
+            ParseError::InvalidFnCallArg(line) => {
+                write!(
+                    f,
+                    "[line {}] Expect , or ) after argument of function call.",
+                    line
+                )
             }
         }
     }
@@ -102,7 +127,7 @@ pub enum Expr {
     Call(Box<Expr>, Vec<Expr>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Stmt {
     Expression(Expr),
     Print(Expr),
@@ -110,6 +135,7 @@ pub enum Stmt {
     Block(Vec<Stmt>),
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),
     While(Expr, Box<Stmt>),
+    Fn(String, Rc<Vec<String>>, Rc<Vec<Stmt>>),
 }
 
 pub fn parse(tokens: Vec<Token>) -> Result<Vec<Stmt>, ParseError> {
@@ -184,6 +210,83 @@ fn parse_decl(tokens: &Vec<Token>, position: usize) -> Result<(Stmt, usize), Par
                     }
                 }
                 _ => panic!("Expect variable name"),
+            }
+        }
+        TokenType::Fn => {
+            assert!(position + 1 < tokens.len());
+            match &tokens[position + 1].token_type {
+                TokenType::Identifier(name) => match &tokens[position + 2].token_type {
+                    TokenType::LeftParen => {
+                        let mut parameters = Vec::new();
+                        let mut position = position + 3;
+                        loop {
+                            match &tokens[position].token_type {
+                                TokenType::RightParen => match &tokens[position + 1].token_type {
+                                    TokenType::LeftBrace => {
+                                        let (body, next_position) =
+                                            parse_stmt(tokens, position + 1)?;
+                                        if let Stmt::Block(body) = body {
+                                            return Ok((
+                                                Stmt::Fn(
+                                                    name.to_string(),
+                                                    Rc::new(parameters),
+                                                    Rc::new(body),
+                                                ),
+                                                next_position,
+                                            ));
+                                        }
+                                    }
+                                    _ => {
+                                        return Err(ParseError::MissingFnLeftBrace(position));
+                                    }
+                                },
+                                TokenType::Identifier(parameter) => {
+                                    parameters.push(parameter.to_string());
+                                    if parameters.len() > 4 {
+                                        return Err(ParseError::TooManyParametersInFnDecl(
+                                            tokens[position + 1].line,
+                                        ));
+                                    }
+
+                                    match &tokens[position + 1].token_type {
+                                        TokenType::Comma => {
+                                            position = position + 2;
+                                        }
+                                        TokenType::RightParen => {
+                                            match &tokens[position + 2].token_type {
+                                                TokenType::LeftBrace => {
+                                                    let (body, next_position) =
+                                                        parse_stmt(tokens, position + 2)?;
+                                                    if let Stmt::Block(body) = body {
+                                                        return Ok((
+                                                            Stmt::Fn(
+                                                                name.to_string(),
+                                                                Rc::new(parameters),
+                                                                Rc::new(body),
+                                                            ),
+                                                            next_position,
+                                                        ));
+                                                    }
+                                                }
+                                                _ => {
+                                                    return Err(ParseError::MissingFnLeftBrace(
+                                                        position,
+                                                    ));
+                                                }
+                                            }
+                                        }
+                                        _ => panic!(
+                                            "Expect only ',' or ')' after function parameter"
+                                        ),
+                                    }
+                                }
+                                _ => panic!("Expect only parameters or ')' after '{} ('", name),
+                            }
+                        }
+                    }
+                    _ => panic!("Expect '(' after function name: {}", name),
+                },
+                _ => panic!("Expect function name after 'fn' keyword"),
             }
         }
         _ => parse_stmt(tokens, position),
@@ -466,14 +569,14 @@ fn parse_call(tokens: &Vec<Token>, position: usize) -> Result<(Expr, usize), Par
             TokenType::LeftParen => {
                 let mut args = Vec::new();
 
-                match &tokens[position + 1].token_type {
-                    TokenType::RightParen => {
-                        expr = Expr::Call(Box::new(expr), args);
-                        return Ok((expr, position + 1));
-                    }
-                    _ => {
-                        position = position + 2;
-                        loop {
+                position = position + 1;
+                loop {
+                    match &tokens[position].token_type {
+                        TokenType::RightParen => {
+                            expr = Expr::Call(Box::new(expr), args);
+                            return Ok((expr, position + 1));
+                        }
+                        _ => {
                             let (arg_expr, next_position) = parse_expr(tokens, position)?;
                             args.push(arg_expr);
                             position = next_position;
@@ -484,22 +587,16 @@ fn parse_call(tokens: &Vec<Token>, position: usize) -> Result<(Expr, usize), Par
                             }
 
                             match &tokens[position].token_type {
+                                TokenType::RightParen => {
+                                    expr = Expr::Call(Box::new(expr), args);
+                                    return Ok((expr, position + 1));
+                                }
                                 TokenType::Comma => {
                                     position += 1;
                                 }
-                                _ => break,
-                            }
-                        }
-
-                        match &tokens[position].token_type {
-                            TokenType::RightParen => {
-                                expr = Expr::Call(Box::new(expr), args);
-                                return Ok((expr, position + 1));
-                            }
-                            _ => {
-                                return Err(ParseError::MissingCallRightParen(
-                                    tokens[position].line,
-                                ))
+                                _ => {
+                                    return Err(ParseError::InvalidFnCallArg(tokens[position].line))
+                                }
                             }
                         }
                     }
@@ -511,7 +608,6 @@ fn parse_call(tokens: &Vec<Token>, position: usize) -> Result<(Expr, usize), Par
 }
 
 fn parse_primary(tokens: &Vec<Token>, position: usize) -> Result<(Expr, usize), ParseError> {
-    // println!("{}", tokens[position]);
     match &tokens[position].token_type {
         TokenType::String(x) => Ok((Expr::String(x.clone()), position + 1)),
         TokenType::Number(x) => Ok((Expr::Number(*x), position + 1)),
@@ -528,7 +624,7 @@ fn parse_primary(tokens: &Vec<Token>, position: usize) -> Result<(Expr, usize), 
         }
         TokenType::Identifier(name) => Ok((Expr::Variable(name.to_string()), position + 1)),
         TokenType::Eof => Err(ParseError::UnexpectedEof(tokens[position].line)),
-        _ => Err(ParseError::ExpectedExpression(
+        _ => Err(ParseError::InvalidPrimaryToken(
             tokens[position].line,
             tokens[position].lexeme.clone(), // TODO: remove clone
         )),

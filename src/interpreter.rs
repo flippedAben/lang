@@ -14,6 +14,8 @@ pub enum RuntimeError {
     DivisionByZero,
     ExpectNumberOrStringBinaryOperand,
     UndefinedVariable(String),
+    CalledNoncallable,
+    CallArityMismatch,
 }
 
 impl Error for RuntimeError {}
@@ -30,6 +32,15 @@ impl fmt::Display for RuntimeError {
             RuntimeError::UndefinedVariable(name) => {
                 write!(f, "Undefined variable '{}'.", name)
             }
+            RuntimeError::CalledNoncallable => {
+                write!(f, "Not callable.")
+            }
+            RuntimeError::CallArityMismatch => {
+                write!(
+                    f,
+                    "Function call argument count does not match declaratio parameter count."
+                )
+            }
         }
     }
 }
@@ -39,6 +50,7 @@ pub enum Value {
     String(String),
     Boolean(bool),
     Number(f64),
+    Function(String, Rc<Vec<String>>, Rc<Vec<Stmt>>),
     None,
 }
 
@@ -49,6 +61,7 @@ impl fmt::Display for Value {
             Value::Boolean(b) => write!(f, "{}", b),
             Value::Number(n) => write!(f, "{}", n),
             Value::None => write!(f, "nil"),
+            Value::Function(name, params, _) => write!(f, "<fn {}({:?})>", name, params),
         }
     }
 }
@@ -78,6 +91,11 @@ impl Value {
             },
             Value::None => match other {
                 Value::None => true,
+                _ => false,
+            },
+            Value::Function(name, _, _) => match other {
+                // TODO: check more than just name for equality?
+                Value::Function(other_name, _, _) => name == other_name,
                 _ => false,
             },
         }
@@ -121,6 +139,9 @@ impl Environment {
 }
 
 pub fn interpret(program: Vec<Stmt>, out: &mut Option<String>) -> Result<(), RuntimeError> {
+    // TODO: add native function: clock
+    // TODO: add native function: print. Remove old one
+    // define global environment with native functions (for this interpreter, native means written in Rust, not Lox)
     interpret_stmt_block(&program, Environment::new(), out)
 }
 
@@ -142,10 +163,10 @@ pub fn interpret_stmt(
 ) -> Result<(), RuntimeError> {
     match stmt {
         Stmt::Expression(expr) => {
-            interpret_expr(&expr, environment.clone())?;
+            interpret_expr(&expr, environment.clone(), out)?;
         }
         Stmt::Print(expr) => {
-            let value = interpret_expr(&expr, environment.clone())?;
+            let value = interpret_expr(&expr, environment.clone(), out)?;
             match out {
                 Some(out) => {
                     out.push_str(&format!("{}\n", value));
@@ -155,7 +176,7 @@ pub fn interpret_stmt(
         }
         Stmt::Let(name, expr) => match expr {
             Some(expr) => {
-                let value = interpret_expr(&expr, environment.clone())?;
+                let value = interpret_expr(&expr, environment.clone(), out)?;
                 environment.borrow_mut().map.insert(name.to_string(), value);
             }
             None => {
@@ -173,7 +194,7 @@ pub fn interpret_stmt(
             interpret_stmt_block(program, next_environment, out)?
         }
         Stmt::If(expr, if_stmt, else_stmt) => {
-            if interpret_expr(&expr, environment.clone())?.to_bool() {
+            if interpret_expr(&expr, environment.clone(), out)?.to_bool() {
                 interpret_stmt(if_stmt, environment.clone(), out)?
             } else {
                 if let Some(else_stmt) = else_stmt {
@@ -182,9 +203,15 @@ pub fn interpret_stmt(
             }
         }
         Stmt::While(expr, stmt) => {
-            while interpret_expr(&expr, environment.clone())?.to_bool() {
+            while interpret_expr(&expr, environment.clone(), out)?.to_bool() {
                 interpret_stmt(stmt, environment.clone(), out)?
             }
+        }
+        Stmt::Fn(name, vec, stmt) => {
+            environment.borrow_mut().map.insert(
+                name.to_string(),
+                Value::Function(name.to_string(), vec.clone(), stmt.clone()),
+            );
         }
     }
     Ok(())
@@ -193,14 +220,15 @@ pub fn interpret_stmt(
 pub fn interpret_expr(
     expr: &Expr,
     environment: Rc<RefCell<Environment>>,
+    out: &mut Option<String>,
 ) -> Result<Value, RuntimeError> {
     match expr {
         Expr::Group(expr) => {
-            let value = interpret_expr(expr, environment)?;
+            let value = interpret_expr(expr, environment, out)?;
             Ok(value)
         }
         Expr::Unary(operation, expr) => {
-            let value = interpret_expr(expr, environment)?;
+            let value = interpret_expr(expr, environment, out)?;
             match operation {
                 Operation::Not => Ok(Value::Boolean(!value.to_bool())),
                 Operation::Negate => match value {
@@ -211,8 +239,8 @@ pub fn interpret_expr(
             }
         }
         Expr::Binary(operation, left_expr, right_expr) => {
-            let left = interpret_expr(left_expr, environment.clone())?;
-            let right = interpret_expr(right_expr, environment)?;
+            let left = interpret_expr(left_expr, environment.clone(), out)?;
+            let right = interpret_expr(right_expr, environment, out)?;
             match operation {
                 Operation::Add => match (left, right) {
                     (Value::String(x), Value::String(y)) => {
@@ -249,7 +277,7 @@ pub fn interpret_expr(
             }
         }
         Expr::BinaryLogical(op, left_expr, right_expr) => {
-            let left = interpret_expr(left_expr, environment.clone())?;
+            let left = interpret_expr(left_expr, environment.clone(), out)?;
             match op {
                 Operation::LogicalOr => {
                     if left.to_bool() {
@@ -263,7 +291,7 @@ pub fn interpret_expr(
                 }
                 _ => unreachable!(),
             }
-            interpret_expr(right_expr, environment)
+            interpret_expr(right_expr, environment, out)
         }
         Expr::None => Ok(Value::None),
         Expr::String(x) => Ok(Value::String(x.to_string())),
@@ -274,22 +302,44 @@ pub fn interpret_expr(
             None => Err(RuntimeError::UndefinedVariable(name.to_string())),
         },
         Expr::Assign(name, expr) => {
-            let value = interpret_expr(expr, environment.clone())?;
+            let value = interpret_expr(expr, environment.clone(), out)?;
             match environment.borrow_mut().try_set(&name, value.clone()) {
                 Some(_) => Ok(value),
                 None => Err(RuntimeError::UndefinedVariable(name.to_string())),
             }
         }
-        Expr::Call(expr, vec) => {
-            let callee = interpret_expr(expr, environment.clone())?;
-            let mut args = Vec::new();
-            for arg_expr in vec {
-                args.push(interpret_expr(arg_expr, environment.clone())?);
+        Expr::Call(expr, arg_exprs) => {
+            // TODO: consider the native functions.
+            let callee = interpret_expr(expr, environment.clone(), out)?;
+            match callee {
+                Value::Function(_, params, body) => {
+                    if params.len() != arg_exprs.len() {
+                        Err(RuntimeError::CallArityMismatch)
+                    } else {
+                        let mut args = Vec::new();
+                        for arg_expr in arg_exprs {
+                            args.push(interpret_expr(arg_expr, environment.clone(), out)?);
+                        }
+
+                        let fn_call_environment = Rc::new(RefCell::new(Environment {
+                            map: HashMap::new(),
+                            enclosing: Some(environment.clone()),
+                        }));
+                        for (param, arg) in params.iter().zip(args) {
+                            fn_call_environment
+                                .borrow_mut()
+                                .map
+                                .insert(param.to_string(), arg);
+                        }
+
+                        interpret_stmt_block(&body, fn_call_environment, out)?;
+
+                        // TODO: return values
+                        Ok(Value::None)
+                    }
+                }
+                _ => Err(RuntimeError::CalledNoncallable),
             }
-            // TODO: function declarations
-            // LoxCallable function = (LoxCallable)callee;
-            // return function.call(this, arguments);
-            Ok(callee)
         }
     }
 }
