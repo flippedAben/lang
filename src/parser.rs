@@ -20,6 +20,7 @@ pub enum ParseError {
     TooManyParametersInFnDecl(usize),
     MissingFnLeftBrace(usize),
     InvalidFnCallArg(usize),
+    MissingReturnSemicolon(usize),
 }
 
 impl Error for ParseError {}
@@ -85,6 +86,9 @@ impl fmt::Display for ParseError {
                     line
                 )
             }
+            ParseError::MissingReturnSemicolon(line) => {
+                write!(f, "[line {}] Expect ; at end of return statement.", line)
+            }
         }
     }
 }
@@ -100,6 +104,7 @@ pub enum Operation {
     Equal,
     NotEqual,
     Less,
+    LessEqual,
     LogicalAnd,
     LogicalOr,
 }
@@ -127,6 +132,7 @@ pub enum Stmt {
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),
     While(Expr, Box<Stmt>),
     Fn(String, Rc<Vec<String>>, Rc<Vec<Stmt>>),
+    Return(Box<Expr>),
 }
 
 pub fn parse(tokens: Vec<Token>) -> Result<Vec<Stmt>, ParseError> {
@@ -337,6 +343,18 @@ fn parse_stmt(tokens: &Vec<Token>, position: usize) -> Result<(Stmt, usize), Par
                 _ => Err(ParseError::MissingWhileStartingBrace(tokens[position].line)),
             }
         }
+        TokenType::Return => match tokens[position + 1].token_type {
+            TokenType::Semicolon => Ok((Stmt::Return(Box::new(Expr::None)), position + 2)),
+            _ => {
+                let (expr, next_position) = parse_expr(tokens, position + 1)?;
+                match tokens[next_position].token_type {
+                    TokenType::Semicolon => Ok((Stmt::Return(Box::new(expr)), next_position + 1)),
+                    _ => Err(ParseError::MissingReturnSemicolon(
+                        tokens[next_position].line,
+                    )),
+                }
+            }
+        },
         _ => {
             let (expr, next_position) = parse_expr(&tokens, position)?;
             assert!(next_position < tokens.len());
@@ -444,21 +462,34 @@ fn parse_comparison(tokens: &Vec<Token>, position: usize) -> Result<(Expr, usize
         // a < b < c => a < b and b < c
         // (< (< a b) c) => (and (< a b) (< b c))
         match tokens[position].token_type {
-            TokenType::Less => match prev_expr {
+            TokenType::Less | TokenType::LessEqual => match prev_expr {
                 None => {
+                    let token_type = &tokens[position].token_type;
                     let (right, next_position) = parse_term(tokens, position + 1)?;
-                    expr = Expr::Binary(Operation::Less, Box::new(expr), Box::new(right.clone()));
+                    let operation = match token_type {
+                        TokenType::Less => Operation::Less,
+                        TokenType::LessEqual => Operation::LessEqual,
+                        _ => unreachable!(),
+                    };
+                    expr = Expr::Binary(operation, Box::new(expr), Box::new(right.clone()));
 
                     position = next_position;
                     prev_expr = Some(right);
                 }
                 Some(prev_right) => {
+                    let token_type = &tokens[position].token_type;
                     let (right, next_position) = parse_term(tokens, position + 1)?;
+
+                    let operation = match token_type {
+                        TokenType::Less => Operation::Less,
+                        TokenType::LessEqual => Operation::LessEqual,
+                        _ => unreachable!(),
+                    };
                     expr = Expr::BinaryLogical(
                         Operation::LogicalAnd,
                         Box::new(expr),
                         Box::new(Expr::Binary(
-                            Operation::Less,
+                            operation,
                             Box::new(prev_right),
                             Box::new(right.clone()),
                         )),

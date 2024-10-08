@@ -10,6 +10,7 @@ use std::{
 
 #[derive(Debug)]
 pub enum RuntimeError {
+    Return(Value), // TODO: is this okay
     ExpectNumberUnaryOperand,
     ExpectNumberBinaryOperand,
     DivisionByZero,
@@ -24,6 +25,7 @@ impl Error for RuntimeError {}
 impl fmt::Display for RuntimeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            RuntimeError::Return(value) => write!(f, "Returned {}", value),
             RuntimeError::ExpectNumberUnaryOperand => write!(f, "Operand must be a number."),
             RuntimeError::ExpectNumberBinaryOperand => write!(f, "Operands must be numbers."),
             RuntimeError::DivisionByZero => write!(f, "Dividing by zero is undefined."),
@@ -224,6 +226,10 @@ pub fn interpret_stmt(
                 Value::Function(name.to_string(), vec.clone(), stmt.clone()),
             );
         }
+        Stmt::Return(expr) => {
+            let value = interpret_expr(expr, environment.clone(), out)?;
+            return Err(RuntimeError::Return(value));
+        }
     }
     Ok(())
 }
@@ -284,6 +290,10 @@ pub fn interpret_expr(
                     (Value::Number(x), Value::Number(y)) => Ok(Value::Boolean(x < y)),
                     _ => Err(RuntimeError::ExpectNumberBinaryOperand),
                 },
+                Operation::LessEqual => match (left, right) {
+                    (Value::Number(x), Value::Number(y)) => Ok(Value::Boolean(x <= y)),
+                    _ => Err(RuntimeError::ExpectNumberBinaryOperand),
+                },
                 _ => unimplemented!(),
             }
         }
@@ -342,10 +352,11 @@ pub fn interpret_expr(
                                 .insert(param.to_string(), arg);
                         }
 
-                        interpret_stmt_block(&body, fn_call_environment, out)?;
-
-                        // TODO: return values
-                        Ok(Value::None)
+                        match interpret_stmt_block(&body, fn_call_environment, out) {
+                            Ok(_) => Ok(Value::None),
+                            Err(RuntimeError::Return(value)) => Ok(value),
+                            Err(e) => Err(e),
+                        }
                     }
                 }
                 Value::NativeFunction(fn_name) => match fn_name {

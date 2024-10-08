@@ -30,6 +30,7 @@ while a < 100 {
 }
 
 print("=== sugar: a < b < c ===");
+print("=== sugar: a <= b <= c ===");
 let a = 0;
 let b = 1;
 let c = 2;
@@ -41,6 +42,10 @@ if a < b < c < d {
 
 if d < b < c < a {
   print("FAIL: d < b < c < a");
+}
+
+if a <= b <= c <= c {
+  print("a <= b <= c <= c");
 }
 
 print("=== functions ===");
@@ -68,3 +73,12 @@ print("Hi.");
 
 print("=== native function: clock ===");
 print(clock());
+
+print("=== function return ===");
+fn fib(n) {
+  if n <= 1 {
+    return n;
+  }
+  return fib(n - 2) + fib(n - 1);
+}
+print(fib(7));
