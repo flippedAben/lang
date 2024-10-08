@@ -1,3 +1,13 @@
+print("=== scopes ===");
+{
+  let a = "outer";
+  {
+    let a = "inner";
+    print(a);
+  }
+  print(a);
+}
+
 print("=== if, else ===");
 let x = 1;
 if x == 1 {
