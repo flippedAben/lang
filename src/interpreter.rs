@@ -124,10 +124,10 @@ pub struct Environment {
 }
 
 impl Environment {
-    pub fn new() -> Rc<RefCell<Self>> {
+    pub fn new(enclosing: Option<Rc<RefCell<Environment>>>) -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(Environment {
             map: HashMap::new(),
-            enclosing: None,
+            enclosing: enclosing,
         }))
     }
 
@@ -153,8 +153,19 @@ impl Environment {
     }
 }
 
+impl fmt::Display for Environment {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Env:\n")?;
+        for (key, value) in self.map.iter() {
+            write!(f, "    {}: {}\n", key, value)?;
+        }
+        write!(f, "    Enclosing env not shown.\n")?;
+        Ok(())
+    }
+}
+
 pub fn interpret(program: Vec<Stmt>, out: &mut Option<String>) -> Result<(), RuntimeError> {
-    let env = Environment::new();
+    let env = Environment::new(None);
     env.borrow_mut().map.insert(
         "print".to_string(),
         Value::NativeFunction(NativeFunction::Print),
@@ -200,10 +211,7 @@ pub fn interpret_stmt(
             }
         },
         Stmt::Block(program) => {
-            let next_environment = Rc::new(RefCell::new(Environment {
-                map: HashMap::new(),
-                enclosing: Some(environment.clone()),
-            }));
+            let next_environment = Environment::new(Some(environment.clone()));
             interpret_stmt_block(program, next_environment, out)?
         }
         Stmt::If(expr, if_stmt, else_stmt) => {
@@ -225,6 +233,7 @@ pub fn interpret_stmt(
                 name.to_string(),
                 Value::Function(name.to_string(), vec.clone(), stmt.clone()),
             );
+            println!("after fn decl '{}'. {}", name, environment.borrow());
         }
         Stmt::Return(expr) => {
             let value = interpret_expr(expr, environment.clone(), out)?;
@@ -332,7 +341,7 @@ pub fn interpret_expr(
         Expr::Call(expr, arg_exprs) => {
             let callee = interpret_expr(expr, environment.clone(), out)?;
             match callee {
-                Value::Function(_, params, body) => {
+                Value::Function(name, params, body) => {
                     if params.len() != arg_exprs.len() {
                         Err(RuntimeError::CallArityMismatch)
                     } else {
@@ -341,10 +350,8 @@ pub fn interpret_expr(
                             args.push(interpret_expr(arg_expr, environment.clone(), out)?);
                         }
 
-                        let fn_call_environment = Rc::new(RefCell::new(Environment {
-                            map: HashMap::new(),
-                            enclosing: Some(environment.clone()),
-                        }));
+                        let fn_call_environment = Environment::new(Some(environment.clone()));
+                        println!("call fn {} parent env. {}", name, environment.borrow());
                         for (param, arg) in params.iter().zip(args) {
                             fn_call_environment
                                 .borrow_mut()
