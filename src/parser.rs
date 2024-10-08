@@ -9,7 +9,6 @@ pub enum ParseError {
     UnexpectedEof(usize),
     UnmatchedParenthesis(usize),
     InvalidPrimaryToken(usize, String),
-    MissingPrintSemicolon(usize),
     MissingExprSemicolon(usize),
     MissingLetSemicolon(usize),
     InvalidAssignmentLValue(usize),
@@ -17,7 +16,6 @@ pub enum ParseError {
     MissingWhileStartingBrace(usize),
     MissingIfStartingBrace(usize),
     MissingElseStartingBrace(usize),
-    MissingCallRightParen(usize),
     TooManyArgumentsInCall(usize),
     TooManyParametersInFnDecl(usize),
     MissingFnLeftBrace(usize),
@@ -42,9 +40,6 @@ impl fmt::Display for ParseError {
                     line, lexeme
                 )
             }
-            ParseError::MissingPrintSemicolon(line) => {
-                write!(f, "[line {}] Expect ';' after value.", line)
-            }
             ParseError::MissingExprSemicolon(line) => {
                 write!(f, "[line {}] Expect ';' after expression.", line)
             }
@@ -65,9 +60,6 @@ impl fmt::Display for ParseError {
             }
             ParseError::MissingElseStartingBrace(line) => {
                 write!(f, "[line {}] Expect '{{' after 'else' keyword.", line)
-            }
-            ParseError::MissingCallRightParen(line) => {
-                write!(f, "[line {}] Expect ')' after function arguments.", line)
             }
             ParseError::TooManyArgumentsInCall(line) => {
                 write!(f, "[line {}] Expect <= 4 function call arguments.", line)
@@ -130,7 +122,6 @@ pub enum Expr {
 #[derive(Debug, Clone)]
 pub enum Stmt {
     Expression(Expr),
-    Print(Expr),
     Let(String, Option<Expr>),
     Block(Vec<Stmt>),
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),
@@ -174,8 +165,7 @@ fn synchronize(tokens: &Vec<Token>, mut position: usize) -> usize {
             | TokenType::While
             | TokenType::Class
             | TokenType::Fn
-            | TokenType::Return
-            | TokenType::Print => return position,
+            | TokenType::Return => return position,
             TokenType::Semicolon => return position + 1,
             _ => position += 1,
         }
@@ -295,17 +285,6 @@ fn parse_decl(tokens: &Vec<Token>, position: usize) -> Result<(Stmt, usize), Par
 
 fn parse_stmt(tokens: &Vec<Token>, position: usize) -> Result<(Stmt, usize), ParseError> {
     match tokens[position].token_type {
-        TokenType::Print => {
-            let (expr, next_position) = parse_expr(&tokens, position + 1)?;
-            assert!(next_position < tokens.len());
-
-            match tokens[next_position].token_type {
-                TokenType::Semicolon => Ok((Stmt::Print(expr), next_position + 1)),
-                _ => Err(ParseError::MissingPrintSemicolon(
-                    tokens[next_position].line,
-                )),
-            }
-        }
         TokenType::LeftBrace => {
             let mut next_position = position + 1;
             let mut statements = Vec::new();

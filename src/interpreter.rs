@@ -45,12 +45,19 @@ impl fmt::Display for RuntimeError {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum NativeFunction {
+    Print,
+    Clock,
+}
+
 #[derive(Debug, Clone)]
 pub enum Value {
     String(String),
     Boolean(bool),
     Number(f64),
     Function(String, Rc<Vec<String>>, Rc<Vec<Stmt>>),
+    NativeFunction(NativeFunction),
     None,
 }
 
@@ -62,6 +69,7 @@ impl fmt::Display for Value {
             Value::Number(n) => write!(f, "{}", n),
             Value::None => write!(f, "nil"),
             Value::Function(name, params, _) => write!(f, "<fn {}({:?})>", name, params),
+            Value::NativeFunction(name) => write!(f, "<native fn {:?}(...)>", name),
         }
     }
 }
@@ -96,6 +104,10 @@ impl Value {
             Value::Function(name, _, _) => match other {
                 // TODO: check more than just name for equality?
                 Value::Function(other_name, _, _) => name == other_name,
+                _ => false,
+            },
+            Value::NativeFunction(name) => match other {
+                Value::NativeFunction(other_name) => name == other_name,
                 _ => false,
             },
         }
@@ -139,10 +151,13 @@ impl Environment {
 }
 
 pub fn interpret(program: Vec<Stmt>, out: &mut Option<String>) -> Result<(), RuntimeError> {
-    // TODO: add native function: clock
-    // TODO: add native function: print. Remove old one
-    // define global environment with native functions (for this interpreter, native means written in Rust, not Lox)
-    interpret_stmt_block(&program, Environment::new(), out)
+    let env = Environment::new();
+    env.borrow_mut().map.insert(
+        "print".to_string(),
+        Value::NativeFunction(NativeFunction::Print),
+    );
+    println!("{:?}", env);
+    interpret_stmt_block(&program, env, out)
 }
 
 pub fn interpret_stmt_block(
@@ -164,15 +179,6 @@ pub fn interpret_stmt(
     match stmt {
         Stmt::Expression(expr) => {
             interpret_expr(&expr, environment.clone(), out)?;
-        }
-        Stmt::Print(expr) => {
-            let value = interpret_expr(&expr, environment.clone(), out)?;
-            match out {
-                Some(out) => {
-                    out.push_str(&format!("{}\n", value));
-                }
-                None => println!("{}", value),
-            }
         }
         Stmt::Let(name, expr) => match expr {
             Some(expr) => {
@@ -309,7 +315,6 @@ pub fn interpret_expr(
             }
         }
         Expr::Call(expr, arg_exprs) => {
-            // TODO: consider the native functions.
             let callee = interpret_expr(expr, environment.clone(), out)?;
             match callee {
                 Value::Function(_, params, body) => {
@@ -338,6 +343,19 @@ pub fn interpret_expr(
                         Ok(Value::None)
                     }
                 }
+                Value::NativeFunction(fn_name) => match fn_name {
+                    NativeFunction::Print => {
+                        assert!(arg_exprs.len() == 1);
+                        if let Some(expr) = arg_exprs.first() {
+                            let value = interpret_expr(expr, environment.clone(), out)?;
+                            println!("{}", value);
+                            Ok(Value::None)
+                        } else {
+                            panic!("Expected one argument to 'print' call.")
+                        }
+                    }
+                    NativeFunction::Clock => todo!(),
+                },
                 _ => Err(RuntimeError::CalledNoncallable),
             }
         }

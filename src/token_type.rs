@@ -44,7 +44,6 @@ pub enum TokenType {
     For,
     While,
     Nil,
-    Print,
 
     // Misc
     Eof,

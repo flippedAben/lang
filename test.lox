@@ -1,23 +1,23 @@
-print "=== if, else ===";
+print("=== if, else ===");
 let x = 1;
 if x == 1 {
-  print "x is 1";
+  print("x is 1");
 } else {
-  print "x is not 1";
+  print("x is not 1");
 }
 
 let y = 0;
 if y == 0 {
-  print "y is 0";
+  print("y is 0");
 }
 
-print "=== or, and ===";
-print "hi" or 2;
-print nil or "yes";
-print nil or nil or "yes yes"; 
-print nil and "never";
+print("=== or, and ===");
+print("hi" or 2);
+print(nil or "yes");
+print(nil or nil or "yes yes"); 
+print(nil and "never");
 
-print "=== while: fibonnaci ===";
+print("=== while: fibonnaci ===");
 let a = 0;
 let b = 1;
 let temp;
@@ -26,27 +26,27 @@ while a < 100 {
   temp = a + b;
   a = b;
   b = temp;
-  print a;
+  print(a);
 }
 
-print "=== sugar: a < b < c ===";
+print("=== sugar: a < b < c ===");
 let a = 0;
 let b = 1;
 let c = 2;
 let d = 3;
 
 if a < b < c < d {
-  print "a < b < c < d";
+  print("a < b < c < d");
 }
 
 if d < b < c < a {
-  print "FAIL: d < b < c < a";
+  print("FAIL: d < b < c < a");
 }
 
-print "=== functions ===";
+print("=== functions ===");
 fn add_one(n) {
   let a = n + 1;
-  print a;
+  print(a);
 }
 add_one(-1);
 
@@ -54,13 +54,11 @@ fn count(n) {
   if 1 < n {
     count(n - 1);
   }
-  print n;
+  print(n);
 }
 count(3);
 
 fn sum(a, b, c) {
-  print a + b + c;
+  print(a + b + c);
 }
 sum(1, 2, 3);
-
-print sum;

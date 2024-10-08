@@ -214,7 +214,6 @@ fn scan_token(
                 "for" => TokenType::For,
                 "while" => TokenType::While,
                 "nil" => TokenType::Nil,
-                "print" => TokenType::Print,
                 _ => TokenType::Identifier(raw_text),
             };
             (Some(token_type), new_position)

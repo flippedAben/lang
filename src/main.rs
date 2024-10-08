@@ -39,7 +39,7 @@ fn run(text: String, out: &mut Option<String>) -> ExitCode {
     match scan(text) {
         Ok(tokens) => match parse(tokens) {
             Ok(program) => {
-                println!("{:?}", program);
+                // println!("{:?}", program);
                 match interpret(program, out) {
                     Ok(_) => ExitCode::SUCCESS,
                     Err(e) => {
