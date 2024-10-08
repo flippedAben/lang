@@ -5,6 +5,7 @@ use std::{
     error::Error,
     fmt::{self},
     rc::Rc,
+    time::{self, SystemTime},
 };
 
 #[derive(Debug)]
@@ -155,6 +156,10 @@ pub fn interpret(program: Vec<Stmt>, out: &mut Option<String>) -> Result<(), Run
     env.borrow_mut().map.insert(
         "print".to_string(),
         Value::NativeFunction(NativeFunction::Print),
+    );
+    env.borrow_mut().map.insert(
+        "clock".to_string(),
+        Value::NativeFunction(NativeFunction::Clock),
     );
     println!("{:?}", env);
     interpret_stmt_block(&program, env, out)
@@ -344,6 +349,7 @@ pub fn interpret_expr(
                     }
                 }
                 Value::NativeFunction(fn_name) => match fn_name {
+                    // TODO: localize native function logic
                     NativeFunction::Print => {
                         assert!(arg_exprs.len() == 1);
                         if let Some(expr) = arg_exprs.first() {
@@ -354,7 +360,13 @@ pub fn interpret_expr(
                             panic!("Expected one argument to 'print' call.")
                         }
                     }
-                    NativeFunction::Clock => todo!(),
+                    NativeFunction::Clock => {
+                        assert!(arg_exprs.len() == 0);
+                        match time::SystemTime::now().duration_since(SystemTime::UNIX_EPOCH) {
+                            Ok(duration) => Ok(Value::Number(duration.as_secs_f64())),
+                            Err(_) => panic!("Get SystemTime::now failed"),
+                        }
+                    }
                 },
                 _ => Err(RuntimeError::CalledNoncallable),
             }

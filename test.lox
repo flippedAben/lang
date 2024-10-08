@@ -62,3 +62,9 @@ fn sum(a, b, c) {
   print(a + b + c);
 }
 sum(1, 2, 3);
+
+print("=== native function: print ===");
+print("Hi.");
+
+print("=== native function: clock ===");
+print(clock());
