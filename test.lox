@@ -82,3 +82,22 @@ fn fib(n) {
   return fib(n - 2) + fib(n - 1);
 }
 print(fib(7));
+
+print("=== function closure ===");
+fn make_counter() {
+  let i = 0;
+  fn count() {
+    i = i + 1;
+    print(i);
+  }
+
+  return count;
+}
+
+let counter = make_counter();
+counter(); // 1
+counter(); // 2
+
+let counter_again = make_counter();
+counter_again(); // 1
+counter_again(); // 2

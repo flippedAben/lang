@@ -59,7 +59,12 @@ pub enum Value {
     String(String),
     Boolean(bool),
     Number(f64),
-    Function(String, Rc<Vec<String>>, Rc<Vec<Stmt>>),
+    Function(
+        String,
+        Rc<Vec<String>>,
+        Rc<Vec<Stmt>>,
+        Rc<RefCell<Environment>>,
+    ),
     NativeFunction(NativeFunction),
     None,
 }
@@ -71,7 +76,7 @@ impl fmt::Display for Value {
             Value::Boolean(b) => write!(f, "{}", b),
             Value::Number(n) => write!(f, "{}", n),
             Value::None => write!(f, "nil"),
-            Value::Function(name, params, _) => write!(f, "<fn {}({:?})>", name, params),
+            Value::Function(name, params, _, _) => write!(f, "<fn {}({:?})>", name, params),
             Value::NativeFunction(name) => write!(f, "<native fn {:?}(...)>", name),
         }
     }
@@ -104,9 +109,9 @@ impl Value {
                 Value::None => true,
                 _ => false,
             },
-            Value::Function(name, _, _) => match other {
+            Value::Function(name, _, _, _) => match other {
                 // TODO: check more than just name for equality?
-                Value::Function(other_name, _, _) => name == other_name,
+                Value::Function(other_name, _, _, _) => name == other_name,
                 _ => false,
             },
             Value::NativeFunction(name) => match other {
@@ -231,9 +236,14 @@ pub fn interpret_stmt(
         Stmt::Fn(name, vec, stmt) => {
             environment.borrow_mut().map.insert(
                 name.to_string(),
-                Value::Function(name.to_string(), vec.clone(), stmt.clone()),
+                Value::Function(
+                    name.to_string(),
+                    vec.clone(),
+                    stmt.clone(),
+                    environment.clone(),
+                ),
             );
-            println!("after fn decl '{}'. {}", name, environment.borrow());
+            // println!("after fn decl '{}'. {}", name, environment.borrow());
         }
         Stmt::Return(expr) => {
             let value = interpret_expr(expr, environment.clone(), out)?;
@@ -341,7 +351,7 @@ pub fn interpret_expr(
         Expr::Call(expr, arg_exprs) => {
             let callee = interpret_expr(expr, environment.clone(), out)?;
             match callee {
-                Value::Function(name, params, body) => {
+                Value::Function(_, params, body, closure) => {
                     if params.len() != arg_exprs.len() {
                         Err(RuntimeError::CallArityMismatch)
                     } else {
@@ -350,8 +360,7 @@ pub fn interpret_expr(
                             args.push(interpret_expr(arg_expr, environment.clone(), out)?);
                         }
 
-                        let fn_call_environment = Environment::new(Some(environment.clone()));
-                        println!("call fn {} parent env. {}", name, environment.borrow());
+                        let fn_call_environment = Environment::new(Some(closure));
                         for (param, arg) in params.iter().zip(args) {
                             fn_call_environment
                                 .borrow_mut()
