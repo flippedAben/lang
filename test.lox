@@ -2,6 +2,7 @@ print("=== scopes ===");
 {
   let a = "outer";
   {
+    print(a);
     let a = "inner";
     print(a);
   }
