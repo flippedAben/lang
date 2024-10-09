@@ -169,7 +169,7 @@ impl fmt::Display for Environment {
     }
 }
 
-pub fn interpret(program: Vec<Stmt>, out: &mut Option<String>) -> Result<(), RuntimeError> {
+pub fn interpret(program: &Vec<Stmt>, out: &mut Option<String>) -> Result<(), RuntimeError> {
     let env = Environment::new(None);
     env.borrow_mut().map.insert(
         "print".to_string(),
@@ -180,7 +180,7 @@ pub fn interpret(program: Vec<Stmt>, out: &mut Option<String>) -> Result<(), Run
         Value::NativeFunction(NativeFunction::Clock),
     );
     println!("{:?}", env);
-    interpret_stmt_block(&program, env, out)
+    interpret_stmt_block(program, env, out)
 }
 
 pub fn interpret_stmt_block(

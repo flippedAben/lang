@@ -1,14 +1,3 @@
-print("=== scopes ===");
-{
-  let a = "outer";
-  {
-    print(a);
-    let a = "inner";
-    print(a);
-  }
-  print(a);
-}
-
 print("=== if, else ===");
 let x = 1;
 if x == 1 {
@@ -112,3 +101,31 @@ counter(); // 2
 let counter_again = make_counter();
 counter_again(); // 1
 counter_again(); // 2
+
+print("=== scopes, shadowing ===");
+{
+  let a = "outer";
+  {
+    print(a);
+    let a = "inner";
+    print(a);
+  }
+  print(a);
+}
+// outer
+// inner
+// outer
+
+print("=== interference: scopes and closure ===");
+let a = "global";
+{
+  fn show_a() {
+    print(a);
+  }
+
+  show_a();
+  let a = "block";
+  show_a();
+}
+// global
+// global

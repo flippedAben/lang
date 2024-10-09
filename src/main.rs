@@ -5,10 +5,12 @@ use std::process::ExitCode;
 
 use interpreter::interpret;
 use parser::parse;
+use resolver::resolve;
 use scanner::scan;
 
 mod interpreter;
 mod parser;
+mod resolver;
 mod scanner;
 mod token;
 mod token_type;
@@ -38,16 +40,19 @@ fn main() -> ExitCode {
 fn run(text: String, out: &mut Option<String>) -> ExitCode {
     match scan(text) {
         Ok(tokens) => match parse(tokens) {
-            Ok(program) => {
-                // println!("{:?}", program);
-                match interpret(program, out) {
+            Ok(program) => match resolve(&program) {
+                Ok(_) => match interpret(&program, out) {
                     Ok(_) => ExitCode::SUCCESS,
                     Err(e) => {
                         eprintln!("{}", e);
                         ExitCode::from(70)
                     }
+                },
+                Err(e) => {
+                    eprintln!("{}", e);
+                    ExitCode::from(70)
                 }
-            }
+            },
             Err(_) => ExitCode::from(65),
         },
         Err(_) => ExitCode::from(60),
