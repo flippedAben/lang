@@ -1,7 +1,7 @@
 use crate::token::Token;
 use crate::token_type::TokenType;
 use core::{fmt, panic};
-use std::cell::RefCell;
+use std::cell::{Ref, RefCell};
 use std::error::Error;
 use std::rc::Rc;
 
@@ -120,7 +120,7 @@ pub enum Expr {
     Boolean(bool),
     None,
     Variable(String, RefCell<Option<usize>>),
-    Assign(String, Box<Expr>),
+    Assign(String, Box<Expr>, RefCell<Option<usize>>),
     BinaryLogical(Operation, Box<Expr>, Box<Expr>),
     Call(Box<Expr>, Vec<Expr>),
 }
@@ -379,7 +379,10 @@ fn parse_assignment(tokens: &Vec<Token>, position: usize) -> Result<(Expr, usize
         TokenType::Equal => match expr {
             Expr::Variable(name, _) => {
                 let (right, next_position) = parse_assignment(tokens, position + 1)?;
-                Ok((Expr::Assign(name, Box::new(right)), next_position))
+                Ok((
+                    Expr::Assign(name, Box::new(right), RefCell::new(None)),
+                    next_position,
+                ))
             }
             _ => Err(ParseError::InvalidAssignmentLValue(tokens[position].line)),
         },

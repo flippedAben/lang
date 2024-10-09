@@ -116,7 +116,7 @@ print("=== scopes, shadowing ===");
 // inner
 // outer
 
-print("=== interference: scopes and closure ===");
+print("=== interference: scopes and closure, variables ===");
 let a = "global";
 {
   fn show_a() {
@@ -129,3 +129,21 @@ let a = "global";
 }
 // global
 // global
+
+print("=== interference: scopes and closure, assignments ===");
+
+let a = 0;
+{
+  fn inc_a() {
+    a = a + 1;
+    print(a);
+  }
+
+  inc_a();
+  let a = 10;
+  inc_a();
+  print(a);
+}
+// 1
+// 2
+// 10

@@ -152,14 +152,18 @@ impl Environment {
         }
     }
 
-    fn try_set(&mut self, name: &str, value: Value) -> Option<Value> {
-        if self.map.contains_key(name) {
-            return self.map.insert(name.to_string(), value);
+    fn set_at(&mut self, name: &str, value: Value, depth: usize) -> Option<Value> {
+        if depth == 0 {
+            match self.map.insert(name.to_string(), value) {
+                Some(value) => Some(value),
+                None => unreachable!("Resolver guarantees the value exists."),
+            }
         } else {
             if let Some(encloser) = &self.enclosing {
-                return encloser.borrow_mut().try_set(name, value);
+                return encloser.borrow_mut().set_at(name, value, depth - 1);
+            } else {
+                unreachable!("Resolver guarantees the value exists.")
             }
-            None
         }
     }
 }
@@ -349,15 +353,18 @@ pub fn interpret_expr(
                 let value = env.get_at(name, *depth);
                 Ok(value)
             }
-            None => unreachable!("Resolver guarantees this."),
+            None => unreachable!("Resolver guarantees variable is resolved."),
         },
-        Expr::Assign(name, expr) => {
-            let value = interpret_expr(expr, environment.clone(), out)?;
-            match environment.borrow_mut().try_set(&name, value.clone()) {
-                Some(_) => Ok(value),
-                None => Err(RuntimeError::UndefinedVariable(name.to_string())),
+        Expr::Assign(name, expr, semantic_depth) => match semantic_depth.borrow().as_ref() {
+            Some(depth) => {
+                let value = interpret_expr(expr, environment.clone(), out)?;
+                environment
+                    .borrow_mut()
+                    .set_at(&name, value.clone(), *depth);
+                Ok(value)
             }
-        }
+            None => unreachable!("Resolver guarantees variable is resolved."),
+        },
         Expr::Call(expr, arg_exprs) => {
             let callee = interpret_expr(expr, environment.clone(), out)?;
             match callee {

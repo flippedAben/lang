@@ -130,10 +130,9 @@ impl Resolver {
                 *semantic_depth.borrow_mut() = Some(self.resolve_variable(name)?);
                 Ok(())
             }
-            Expr::Assign(name, expr) => {
+            Expr::Assign(name, expr, semantic_depth) => {
                 self.resolve_expr(expr)?;
-                // TODO: find how many hops we need to get to the environment in which the variable was declared.
-                // resolveLocal(name)
+                *semantic_depth.borrow_mut() = Some(self.resolve_variable(name)?);
                 Ok(())
             }
             Expr::BinaryLogical(_, left, right) => {
