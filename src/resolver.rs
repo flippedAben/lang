@@ -1,10 +1,11 @@
-use std::{borrow::Borrow, cell::RefCell, collections::HashMap, error::Error, fmt, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, error::Error, fmt, rc::Rc};
 
 use crate::parser::{Expr, Stmt};
 
 #[derive(Debug)]
 pub enum ResolveError {
     Todo,
+    UnresolvedVariableOrFn(String),
 }
 
 impl Error for ResolveError {}
@@ -13,6 +14,10 @@ impl fmt::Display for ResolveError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             ResolveError::Todo => write!(f, "todo"),
+            // TODO: add more info
+            ResolveError::UnresolvedVariableOrFn(name) => {
+                write!(f, "Unresolved variable or function {}", name)
+            }
         }
     }
 }
@@ -20,7 +25,7 @@ impl fmt::Display for ResolveError {
 pub fn resolve(program: &Vec<Stmt>) -> Result<(), ResolveError> {
     let mut resolver = Resolver::new();
     for stmt in program.iter() {
-        resolver.resolve_stmt(stmt);
+        resolver.resolve_stmt(stmt)?;
     }
     Ok(())
 }
@@ -31,7 +36,12 @@ struct Resolver {
 
 impl Resolver {
     fn new() -> Self {
-        Resolver { scopes: Vec::new() }
+        Resolver {
+            scopes: vec![Rc::new(RefCell::new(HashMap::from_iter([
+                ("print".to_string(), true),
+                ("clock".to_string(), true),
+            ])))],
+        }
     }
 
     fn resolve_stmt(&mut self, stmt: &Stmt) -> Result<(), ResolveError> {
@@ -42,38 +52,74 @@ impl Resolver {
                     scope.borrow_mut().insert(name.to_string(), false);
                 }
                 if let Some(expr) = expr {
-                    self.resolve_expr(expr);
+                    self.resolve_expr(expr)?;
                 }
                 if let Some(scope) = self.scopes.last() {
                     scope.borrow_mut().insert(name.to_string(), true);
                 }
                 Ok(())
             }
-            Stmt::Block(vec) => {
+            Stmt::Block(body) => {
                 self.scopes.push(Rc::new(RefCell::new(HashMap::new())));
-                for stmt in vec {
-                    self.resolve_stmt(stmt);
+                for stmt in body {
+                    self.resolve_stmt(stmt)?;
                 }
                 self.scopes.pop();
                 Ok(())
             }
-            Stmt::If(expr, stmt, stmt1) => todo!(),
-            Stmt::While(expr, stmt) => todo!(),
-            Stmt::Fn(_, rc, rc1) => todo!(),
-            Stmt::Return(expr) => todo!(),
+            Stmt::If(condition, if_stmt, else_stmt) => {
+                self.resolve_expr(condition)?;
+                self.resolve_stmt(if_stmt)?;
+                if let Some(else_stmt) = else_stmt {
+                    self.resolve_stmt(else_stmt)?;
+                }
+                Ok(())
+            }
+            Stmt::While(condition, body) => {
+                self.resolve_expr(condition)?;
+                self.resolve_stmt(body)?;
+                Ok(())
+            }
+            Stmt::Fn(name, parameters, body) => {
+                if let Some(scope) = self.scopes.last() {
+                    scope.borrow_mut().insert(name.to_string(), true);
+                }
+
+                self.scopes.push(Rc::new(RefCell::new(HashMap::new())));
+                for parameter in parameters.iter() {
+                    if let Some(scope) = self.scopes.last() {
+                        scope.borrow_mut().insert(parameter.to_string(), true);
+                    }
+                }
+
+                for stmt in body.iter() {
+                    self.resolve_stmt(stmt)?;
+                }
+
+                self.scopes.pop();
+                Ok(())
+            }
+            Stmt::Return(expr) => {
+                self.resolve_expr(expr)?;
+                Ok(())
+            }
         }
     }
 
     fn resolve_expr(&mut self, expr: &Expr) -> Result<(), ResolveError> {
         match expr {
-            Expr::Group(expr) => todo!(),
-            Expr::Unary(operation, expr) => todo!(),
-            Expr::Binary(operation, expr, expr1) => todo!(),
-            Expr::String(_) => todo!(),
-            Expr::Number(_) => todo!(),
-            Expr::Boolean(_) => todo!(),
-            Expr::None => todo!(),
-            Expr::Variable(name) => {
+            Expr::Group(expr) => self.resolve_expr(expr),
+            Expr::Unary(_, expr) => self.resolve_expr(expr),
+            Expr::Binary(_, left, right) => {
+                self.resolve_expr(left)?;
+                self.resolve_expr(right)?;
+                Ok(())
+            }
+            Expr::String(_) => Ok(()),
+            Expr::Number(_) => Ok(()),
+            Expr::Boolean(_) => Ok(()),
+            Expr::None => Ok(()),
+            Expr::Variable(name, semantic_depth) => {
                 if let Some(scope) = self.scopes.last() {
                     if let Some(ready) = scope.borrow_mut().get(name) {
                         if !ready {
@@ -81,11 +127,38 @@ impl Resolver {
                         }
                     }
                 }
+                *semantic_depth.borrow_mut() = Some(self.resolve_variable(name)?);
                 Ok(())
             }
-            Expr::Assign(_, expr) => todo!(),
-            Expr::BinaryLogical(operation, expr, expr1) => todo!(),
-            Expr::Call(expr, vec) => todo!(),
+            Expr::Assign(name, expr) => {
+                self.resolve_expr(expr)?;
+                // TODO: find how many hops we need to get to the environment in which the variable was declared.
+                // resolveLocal(name)
+                Ok(())
+            }
+            Expr::BinaryLogical(_, left, right) => {
+                self.resolve_expr(left)?;
+                self.resolve_expr(right)?;
+                Ok(())
+            }
+            Expr::Call(callee, args) => {
+                self.resolve_expr(callee)?;
+                for arg in args {
+                    self.resolve_expr(arg)?;
+                }
+                Ok(())
+            }
         }
+    }
+
+    fn resolve_variable(&mut self, name: &String) -> Result<usize, ResolveError> {
+        let mut distance: usize = 0;
+        for scope in self.scopes.iter().rev() {
+            if scope.borrow().contains_key(name) {
+                return Ok(distance);
+            }
+            distance += 1;
+        }
+        Err(ResolveError::UnresolvedVariableOrFn(name.to_string()))
     }
 }

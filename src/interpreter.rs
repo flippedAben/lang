@@ -136,14 +136,20 @@ impl Environment {
         }))
     }
 
-    fn get(&self, name: &str) -> Option<Value> {
-        if let Some(v) = self.map.get(name) {
-            return Some(v.clone());
+    fn get_at(&self, name: &str, depth: usize) -> Value {
+        if depth == 0 {
+            if let Some(v) = self.map.get(name) {
+                return v.clone();
+            } else {
+                unreachable!("Resolver guarantees the value exists.")
+            }
+        } else {
+            if let Some(encloser) = &self.enclosing {
+                return encloser.borrow().get_at(name, depth - 1);
+            } else {
+                unreachable!("Resolver guarantees the value exists.")
+            }
         }
-        if let Some(encloser) = &self.enclosing {
-            return encloser.borrow().get(name);
-        }
-        None
     }
 
     fn try_set(&mut self, name: &str, value: Value) -> Option<Value> {
@@ -170,6 +176,7 @@ impl fmt::Display for Environment {
 }
 
 pub fn interpret(program: &Vec<Stmt>, out: &mut Option<String>) -> Result<(), RuntimeError> {
+    println!("{:?}", program);
     let env = Environment::new(None);
     env.borrow_mut().map.insert(
         "print".to_string(),
@@ -179,7 +186,6 @@ pub fn interpret(program: &Vec<Stmt>, out: &mut Option<String>) -> Result<(), Ru
         "clock".to_string(),
         Value::NativeFunction(NativeFunction::Clock),
     );
-    println!("{:?}", env);
     interpret_stmt_block(program, env, out)
 }
 
@@ -337,9 +343,13 @@ pub fn interpret_expr(
         Expr::String(x) => Ok(Value::String(x.to_string())),
         Expr::Number(x) => Ok(Value::Number(*x)),
         Expr::Boolean(x) => Ok(Value::Boolean(*x)),
-        Expr::Variable(name) => match environment.borrow().get(&name) {
-            Some(value) => Ok(value.clone()), // TODO: no clone
-            None => Err(RuntimeError::UndefinedVariable(name.to_string())),
+        Expr::Variable(name, semantic_depth) => match semantic_depth.borrow().as_ref() {
+            Some(depth) => {
+                let env = environment.borrow();
+                let value = env.get_at(name, *depth);
+                Ok(value)
+            }
+            None => unreachable!("Resolver guarantees this."),
         },
         Expr::Assign(name, expr) => {
             let value = interpret_expr(expr, environment.clone(), out)?;

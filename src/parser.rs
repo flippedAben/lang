@@ -1,6 +1,7 @@
 use crate::token::Token;
 use crate::token_type::TokenType;
 use core::{fmt, panic};
+use std::cell::RefCell;
 use std::error::Error;
 use std::rc::Rc;
 
@@ -118,7 +119,7 @@ pub enum Expr {
     Number(f64),
     Boolean(bool),
     None,
-    Variable(String),
+    Variable(String, RefCell<Option<usize>>),
     Assign(String, Box<Expr>),
     BinaryLogical(Operation, Box<Expr>, Box<Expr>),
     Call(Box<Expr>, Vec<Expr>),
@@ -376,7 +377,7 @@ fn parse_assignment(tokens: &Vec<Token>, position: usize) -> Result<(Expr, usize
 
     match tokens[position].token_type {
         TokenType::Equal => match expr {
-            Expr::Variable(name) => {
+            Expr::Variable(name, _) => {
                 let (right, next_position) = parse_assignment(tokens, position + 1)?;
                 Ok((Expr::Assign(name, Box::new(right)), next_position))
             }
@@ -632,7 +633,10 @@ fn parse_primary(tokens: &Vec<Token>, position: usize) -> Result<(Expr, usize), 
                 _ => Err(ParseError::UnmatchedParenthesis(tokens[position].line)),
             }
         }
-        TokenType::Identifier(name) => Ok((Expr::Variable(name.to_string()), position + 1)),
+        TokenType::Identifier(name) => Ok((
+            Expr::Variable(name.to_string(), RefCell::new(None)),
+            position + 1,
+        )),
         TokenType::Eof => Err(ParseError::UnexpectedEof(tokens[position].line)),
         _ => Err(ParseError::InvalidPrimaryToken(
             tokens[position].line,
