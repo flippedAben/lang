@@ -3,7 +3,7 @@ use std::{
     cell::RefCell,
     collections::HashMap,
     error::Error,
-    fmt::{self},
+    fmt::{self, Write},
     rc::Rc,
     time::{self, SystemTime},
 };
@@ -176,7 +176,7 @@ impl fmt::Display for Environment {
 }
 
 pub fn interpret(program: &Vec<Stmt>, out: &mut Option<String>) -> Result<(), RuntimeError> {
-    println!("{:?}", program);
+    // println!("{:?}", program);
     let env = Environment::new(None);
     env.borrow_mut().map.insert(
         "print".to_string(),
@@ -394,8 +394,16 @@ pub fn interpret_expr(
                         assert!(arg_exprs.len() == 1);
                         if let Some(expr) = arg_exprs.first() {
                             let value = interpret_expr(expr, environment.clone(), out)?;
-                            println!("{}", value);
-                            Ok(Value::None)
+                            match out {
+                                Some(out) => match write!(out, "{}\n", value) {
+                                    Ok(_) => Ok(Value::None),
+                                    Err(_) => panic!("Could not write to out buffer."),
+                                },
+                                None => {
+                                    println!("{}", value);
+                                    Ok(Value::None)
+                                }
+                            }
                         } else {
                             panic!("Expected one argument to 'print' call.")
                         }

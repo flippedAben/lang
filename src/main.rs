@@ -67,23 +67,49 @@ mod tests {
     fn block_scope_environment() {
         let mut out = Some(String::new());
         let program = r#"
-        {
-            let bar = "outer bar";
-            let world = "outer world";
             {
-                bar = "modified bar";
-                let world = "inner world";
-                print bar;
-                print world;
+                let bar = "outer bar";
+                let world = "outer world";
+                {
+                    bar = "modified bar";
+                    let world = "inner world";
+                    print(bar);
+                    print(world);
+                }
+                print(bar);
+                print(world);
             }
-            print bar;
-            print world;
-        }"#;
+        "#;
         run(program.to_string(), &mut out);
         let expected = r#"modified bar
 inner world
 modified bar
 outer world
+"#;
+        if let Some(out) = out {
+            assert_eq!(out, expected);
+        }
+    }
+
+    #[test]
+    fn if_else() {
+        let mut out = Some(String::new());
+        let program = r#"
+            let x = 1;
+            if x == 1 {
+                print("x is 1");
+            } else {
+                print("x is not 1");
+            }
+
+            let y = 0;
+            if y == 0 {
+                print("y is 0");
+            }
+        "#;
+        run(program.to_string(), &mut out);
+        let expected = r#"x is 1
+y is 0
 "#;
         if let Some(out) = out {
             assert_eq!(out, expected);
