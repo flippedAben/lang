@@ -1,3 +1,16 @@
+print("=== if, else ===");
+let x = 1;
+if x == 1 {
+  print("x is 1");
+} else {
+  print("x is not 1");
+}
+
+let y = 0;
+if y == 0 {
+  print("y is 0");
+}
+
 print("=== or, and ===");
 print("hi" or 2);
 print(nil or "yes");
@@ -138,5 +151,5 @@ let a = 0;
 // 10
 
 print("=== can't assign variable to itself ===");
-// let a = "outer";
-// let a = a; // error
+let a = "outer";
+let a = a; // error

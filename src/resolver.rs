@@ -4,8 +4,8 @@ use crate::parser::{Expr, Stmt};
 
 #[derive(Debug)]
 pub enum ResolveError {
-    Todo,
     UnresolvedVariableOrFn(String),
+    VariableInItsOwnInitializer(String),
     // TODO: ReturnOutsideFunction
 }
 
@@ -14,10 +14,16 @@ impl Error for ResolveError {}
 impl fmt::Display for ResolveError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ResolveError::Todo => write!(f, "todo"),
             // TODO: add more info
             ResolveError::UnresolvedVariableOrFn(name) => {
                 write!(f, "Unresolved variable or function {}", name)
+            }
+            ResolveError::VariableInItsOwnInitializer(name) => {
+                write!(
+                    f,
+                    "Variable in own initializer 'let {} = ... {}'",
+                    name, name
+                )
             }
         }
     }
@@ -124,7 +130,9 @@ impl Resolver {
                 if let Some(scope) = self.scopes.last() {
                     if let Some(ready) = scope.borrow_mut().get(name) {
                         if !ready {
-                            return Err(ResolveError::Todo);
+                            return Err(ResolveError::VariableInItsOwnInitializer(
+                                name.to_string(),
+                            ));
                         }
                     }
                 }

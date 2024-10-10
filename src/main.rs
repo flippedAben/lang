@@ -115,4 +115,241 @@ y is 0
             assert_eq!(out, expected);
         }
     }
+
+    #[test]
+    fn or_and() {
+        let mut out = Some(String::new());
+        let program = r#"
+            print("hi" or 2);
+            print(nil or "yes");
+            print(nil or nil or "yes yes"); 
+            print(nil and "never");
+        "#;
+        run(program.to_string(), &mut out);
+        let expected = r#"hi
+yes
+yes yes
+nil
+"#;
+        assert_eq!(out, Some(expected.to_string()));
+    }
+
+    #[test]
+    fn while_loop() {
+        let mut out = Some(String::new());
+        let program = r#"
+            let a = 0;
+            let b = 1;
+            let temp;
+    
+            while a < 100 {
+              temp = a + b;
+              a = b;
+              b = temp;
+              print(a);
+            }
+        "#;
+        run(program.to_string(), &mut out);
+        let expected = r#"1
+1
+2
+3
+5
+8
+13
+21
+34
+55
+89
+144
+"#;
+        assert_eq!(out, Some(expected.to_string()));
+    }
+
+    #[test]
+    fn less_than_sugar() {
+        let mut out = Some(String::new());
+        let program = r#"
+            let a = 0;
+            let b = 1;
+            let c = 2;
+            let d = 3;
+
+            if a < b < c < d {
+            print("a < b < c < d");
+            }
+
+            if d < b < c < a {
+            print("FAIL: d < b < c < a");
+            }
+
+            if a <= b <= c <= c {
+            print("a <= b <= c <= c");
+            }
+        "#;
+        run(program.to_string(), &mut out);
+        let expected = r#"a < b < c < d
+a <= b <= c <= c
+"#;
+        assert_eq!(out, Some(expected.to_string()));
+    }
+
+    #[test]
+    fn function() {
+        let mut out = Some(String::new());
+        let program = r#"
+            fn add_one(n) {
+            let a = n + 1;
+            print(a);
+            }
+            add_one(-1);
+
+            fn count(n) {
+            if 1 < n {
+                count(n - 1);
+            }
+            print(n);
+            }
+            count(3);
+
+            fn sum(a, b, c) {
+            print(a + b + c);
+            }
+            sum(1, 2, 3);
+        "#;
+        run(program.to_string(), &mut out);
+        let expected = r#"0
+1
+2
+3
+6
+"#;
+        assert_eq!(out, Some(expected.to_string()));
+    }
+
+    #[test]
+    fn function_return() {
+        let mut out = Some(String::new());
+        let program = r#"
+            fn fib(n) {
+                if n <= 1 {
+                    return n;
+                }
+                return fib(n - 2) + fib(n - 1);
+            }
+            print(fib(7));
+        "#;
+        run(program.to_string(), &mut out);
+        let expected = r#"13
+"#;
+        assert_eq!(out, Some(expected.to_string()));
+    }
+
+    #[test]
+    fn closures() {
+        let mut out = Some(String::new());
+        let program = r#"
+            fn make_counter() {
+                let i = 0;
+                fn count() {
+                    i = i + 1;
+                    print(i);
+                }
+
+                return count;
+            }
+
+            let counter = make_counter();
+            counter();
+            counter();
+
+            let counter_again = make_counter();
+            counter_again();
+            counter_again();
+        "#;
+        run(program.to_string(), &mut out);
+        let expected = r#"1
+2
+1
+2
+"#;
+        assert_eq!(out, Some(expected.to_string()));
+    }
+
+    #[test]
+    fn scopes_shadowing() {
+        let mut out = Some(String::new());
+        let program = r#"
+            {
+                let a = "outer";
+                {
+                    print(a);
+                    let a = "inner";
+                    print(a);
+                }
+                print(a);
+                let a = "outer2";
+                print(a);
+            }
+        "#;
+        run(program.to_string(), &mut out);
+        let expected = r#"outer
+inner
+outer
+outer2
+"#;
+        assert_eq!(out, Some(expected.to_string()));
+    }
+
+    #[test]
+    fn closures_variables() {
+        let mut out = Some(String::new());
+        let program = r#"
+            let a = "global";
+            {
+                fn show_a() {
+                    print(a);
+                }
+
+                show_a();
+                let a = "block";
+                show_a();
+            }
+        "#;
+        run(program.to_string(), &mut out);
+        let expected = r#"global
+global
+"#;
+        assert_eq!(out, Some(expected.to_string()));
+    }
+
+    #[test]
+    fn closures_assignments() {
+        let mut out = Some(String::new());
+        let program = r#"
+            let a = 0;
+            {
+                fn inc_a() {
+                    a = a + 1;
+                    print(a);
+                }
+
+                inc_a();
+                let a = 10;
+                inc_a();
+                print(a);
+            }
+        "#;
+        run(program.to_string(), &mut out);
+        let expected = r#"1
+2
+10
+"#;
+        assert_eq!(out, Some(expected.to_string()));
+    }
+
+    // TODO: finish test
+    // #[test]
+    // fn resolver_error_variable_in_its_own_initializer() {
+    // }
 }
