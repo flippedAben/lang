@@ -64,6 +64,7 @@ pub enum Value {
     NativeFunction(NativeFunction),
     None,
     Class(String, Rc<Vec<Stmt>>),
+    Instance(Rc<Value>),
 }
 
 impl fmt::Display for Value {
@@ -75,7 +76,8 @@ impl fmt::Display for Value {
             Value::None => write!(f, "nil"),
             Value::Function(name, params, _, _) => write!(f, "<fn {}({:?})>", name, params),
             Value::NativeFunction(name) => write!(f, "<native fn {:?}(...)>", name),
-            Value::Class(name, methods) => write!(f, "<class fn {}>", name),
+            Value::Class(name, methods) => write!(f, "<class {}>", name),
+            Value::Instance(class) => write!(f, "<instance of {}>", class),
         }
     }
 }
@@ -120,6 +122,7 @@ impl Value {
                 Value::Class(other_name, _) => name == other_name,
                 _ => false,
             },
+            Value::Instance(_) => false, // TODO: when are two instances equal?
         }
     }
 }
@@ -428,6 +431,7 @@ pub fn interpret_expr(
                         }
                     }
                 },
+                Value::Class(_, _) => Ok(Value::Instance(Rc::new(callee))),
                 _ => Err(RuntimeError::CalledNoncallable),
             }
         }

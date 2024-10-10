@@ -154,13 +154,16 @@ let a = 0;
 // let a = "outer";
 // let a = a; // error
 
-class Class {
-  fn hi() {
-    print("hi");
+class Ingredient {
+  fn egg() {
+    print("egg");
   }
 
-  fn bye(who) {
-    print("bye " + who);
+  fn fish(kind) {
+    print("fish " + kind);
   }
 }
-print(Class);
+print(Ingredient);
+
+let ing = Ingredient();
+print(ing);
