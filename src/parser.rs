@@ -1,7 +1,7 @@
 use crate::token::Token;
 use crate::token_type::TokenType;
 use core::{fmt, panic};
-use std::cell::{Ref, RefCell};
+use std::cell::RefCell;
 use std::error::Error;
 use std::rc::Rc;
 

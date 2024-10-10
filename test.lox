@@ -111,10 +111,13 @@ print("=== scopes, shadowing ===");
     print(a);
   }
   print(a);
+  let a = "outer2";
+  print(a);
 }
 // outer
 // inner
 // outer
+// outer2
 
 print("=== interference: scopes and closure, variables ===");
 let a = "global";
@@ -131,7 +134,6 @@ let a = "global";
 // global
 
 print("=== interference: scopes and closure, assignments ===");
-
 let a = 0;
 {
   fn inc_a() {
@@ -147,3 +149,7 @@ let a = 0;
 // 1
 // 2
 // 10
+
+print("=== can't assign variable to itself ===");
+// let a = "outer";
+// let a = a; // error

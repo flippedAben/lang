@@ -6,6 +6,7 @@ use crate::parser::{Expr, Stmt};
 pub enum ResolveError {
     Todo,
     UnresolvedVariableOrFn(String),
+    // TODO: ReturnOutsideFunction
 }
 
 impl Error for ResolveError {}
@@ -158,6 +159,7 @@ impl Resolver {
             }
             distance += 1;
         }
+        // TODO: add line number
         Err(ResolveError::UnresolvedVariableOrFn(name.to_string()))
     }
 }

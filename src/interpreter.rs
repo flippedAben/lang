@@ -15,7 +15,6 @@ pub enum RuntimeError {
     ExpectNumberBinaryOperand,
     DivisionByZero,
     ExpectNumberOrStringBinaryOperand,
-    UndefinedVariable(String),
     CalledNoncallable,
     CallArityMismatch,
 }
@@ -31,9 +30,6 @@ impl fmt::Display for RuntimeError {
             RuntimeError::DivisionByZero => write!(f, "Dividing by zero is undefined."),
             RuntimeError::ExpectNumberOrStringBinaryOperand => {
                 write!(f, "Operands must be two numbers or two strings.")
-            }
-            RuntimeError::UndefinedVariable(name) => {
-                write!(f, "Undefined variable '{}'.", name)
             }
             RuntimeError::CalledNoncallable => {
                 write!(f, "Not callable.")
