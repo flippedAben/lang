@@ -17,6 +17,9 @@ pub enum RuntimeError {
     ExpectNumberOrStringBinaryOperand,
     CalledNoncallable,
     CallArityMismatch,
+    GetOnNonInstance,
+    SetOnNonInstance,
+    UndefinedInstanceProperty,
 }
 
 impl Error for RuntimeError {}
@@ -39,6 +42,15 @@ impl fmt::Display for RuntimeError {
                     f,
                     "Function call argument count does not match declaratio parameter count."
                 )
+            }
+            RuntimeError::GetOnNonInstance => {
+                write!(f, "Property access '.' on non-Instance value.")
+            }
+            RuntimeError::SetOnNonInstance => {
+                write!(f, "Property access '.x = ' on non-Instance value.")
+            }
+            RuntimeError::UndefinedInstanceProperty => {
+                write!(f, "Property does not exist on Instance.")
             }
         }
     }
@@ -64,7 +76,7 @@ pub enum Value {
     NativeFunction(NativeFunction),
     None,
     Class(String, Rc<Vec<Stmt>>),
-    Instance(Rc<Value>),
+    Instance(Rc<Value>, Rc<RefCell<HashMap<String, Value>>>),
 }
 
 impl fmt::Display for Value {
@@ -76,8 +88,8 @@ impl fmt::Display for Value {
             Value::None => write!(f, "nil"),
             Value::Function(name, params, _, _) => write!(f, "<fn {}({:?})>", name, params),
             Value::NativeFunction(name) => write!(f, "<native fn {:?}(...)>", name),
-            Value::Class(name, methods) => write!(f, "<class {}>", name),
-            Value::Instance(class) => write!(f, "<instance of {}>", class),
+            Value::Class(name, _) => write!(f, "<class {}>", name),
+            Value::Instance(class, _) => write!(f, "<instance of {}>", class),
         }
     }
 }
@@ -122,7 +134,7 @@ impl Value {
                 Value::Class(other_name, _) => name == other_name,
                 _ => false,
             },
-            Value::Instance(_) => false, // TODO: when are two instances equal?
+            Value::Instance(_, _) => false, // TODO: when are two instances equal?
         }
     }
 }
@@ -431,8 +443,32 @@ pub fn interpret_expr(
                         }
                     }
                 },
-                Value::Class(_, _) => Ok(Value::Instance(Rc::new(callee))),
+                Value::Class(_, _) => Ok(Value::Instance(
+                    Rc::new(callee),
+                    Rc::new(RefCell::new(HashMap::new())),
+                )),
                 _ => Err(RuntimeError::CalledNoncallable),
+            }
+        }
+        Expr::Get(instance, name) => {
+            let instance = interpret_expr(instance, environment.clone(), out)?;
+            match instance {
+                Value::Instance(_class, fields) => match fields.borrow().get(name) {
+                    Some(value) => Ok(value.clone()), // TODO: is clone right here?
+                    None => Err(RuntimeError::UndefinedInstanceProperty),
+                },
+                _ => Err(RuntimeError::GetOnNonInstance),
+            }
+        }
+        Expr::Set(instance, name, value) => {
+            let instance = interpret_expr(instance, environment.clone(), out)?;
+            match instance {
+                Value::Instance(_class, fields) => {
+                    let value = interpret_expr(value, environment.clone(), out)?;
+                    fields.borrow_mut().insert(name.to_string(), value.clone()); // TODO: not sure about clone
+                    Ok(value)
+                }
+                _ => Err(RuntimeError::SetOnNonInstance),
             }
         }
     }

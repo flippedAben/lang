@@ -162,6 +162,12 @@ impl Resolver {
                 }
                 Ok(())
             }
+            Expr::Get(instance, _) => self.resolve_expr(instance),
+            Expr::Set(instance, _, value) => {
+                self.resolve_expr(instance)?;
+                self.resolve_expr(value)?;
+                Ok(())
+            }
         }
     }
 

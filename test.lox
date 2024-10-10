@@ -167,3 +167,14 @@ print(Ingredient);
 
 let ing = Ingredient();
 print(ing);
+
+ing.a = 1;
+print(ing.a);
+ing.a = 2;
+print(ing.a);
+print(ing.a);
+
+ing.b = Ingredient();
+print(ing.b);
+ing.b.c = 5;
+print(ing.b.c);

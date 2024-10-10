@@ -1,4 +1,4 @@
-use crate::token::{self, Token};
+use crate::token::Token;
 use crate::token_type::TokenType;
 use core::{fmt, panic};
 use std::cell::RefCell;
@@ -22,6 +22,7 @@ pub enum ParseError {
     MissingFnLeftBrace(usize),
     InvalidFnCallArg(usize),
     MissingReturnSemicolon(usize),
+    InvalidGet(usize),
 }
 
 impl Error for ParseError {}
@@ -90,6 +91,9 @@ impl fmt::Display for ParseError {
             ParseError::MissingReturnSemicolon(line) => {
                 write!(f, "[line {}] Expect ; at end of return statement.", line)
             }
+            ParseError::InvalidGet(line) => {
+                write!(f, "[line {}] Expect ; at end of return statement.", line)
+            }
         }
     }
 }
@@ -123,6 +127,8 @@ pub enum Expr {
     Assign(String, Box<Expr>, RefCell<Option<usize>>),
     BinaryLogical(Operation, Box<Expr>, Box<Expr>),
     Call(Box<Expr>, Vec<Expr>),
+    Get(Rc<Expr>, String),
+    Set(Rc<Expr>, String, Rc<Expr>),
 }
 
 // TODO: should these be structs instead of enum?
@@ -415,6 +421,10 @@ fn parse_assignment(tokens: &Vec<Token>, position: usize) -> Result<(Expr, usize
                     next_position,
                 ))
             }
+            Expr::Get(expr, name) => {
+                let (right, next_position) = parse_assignment(tokens, position + 1)?;
+                Ok((Expr::Set(expr, name, Rc::new(right)), next_position))
+            }
             _ => Err(ParseError::InvalidAssignmentLValue(tokens[position].line)),
         },
         _ => Ok((expr, position)),
@@ -647,6 +657,15 @@ fn parse_call(tokens: &Vec<Token>, position: usize) -> Result<(Expr, usize), Par
                     }
                 }
             }
+            TokenType::Dot => match &tokens[position + 1].token_type {
+                TokenType::Identifier(name) => {
+                    expr = Expr::Get(Rc::new(expr), name.to_owned());
+                    position = position + 2;
+                }
+                _ => {
+                    return Err(ParseError::InvalidGet(tokens[position].line));
+                }
+            },
             _ => return Ok((expr, position)),
         }
     }
