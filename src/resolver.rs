@@ -6,6 +6,7 @@ use crate::parser::{Expr, Stmt};
 pub enum ResolveError {
     UnresolvedVariableOrFn(String),
     VariableInItsOwnInitializer(String),
+    TopLevelReturn,
     // TODO: ReturnOutsideFunction
 }
 
@@ -25,6 +26,9 @@ impl fmt::Display for ResolveError {
                     name, name
                 )
             }
+            ResolveError::TopLevelReturn => {
+                write!(f, "Cannot return from outside a function.",)
+            }
         }
     }
 }
@@ -37,8 +41,16 @@ pub fn resolve(program: &Vec<Stmt>) -> Result<(), ResolveError> {
     Ok(())
 }
 
+#[derive(Clone)]
+enum FnType {
+    None,
+    Standalone,
+    Method,
+}
+
 struct Resolver {
     scopes: Vec<Rc<RefCell<HashMap<String, bool>>>>,
+    fn_type: FnType,
 }
 
 impl Resolver {
@@ -48,6 +60,7 @@ impl Resolver {
                 ("print".to_string(), true),
                 ("clock".to_string(), true),
             ])))],
+            fn_type: FnType::None,
         }
     }
 
@@ -92,27 +105,27 @@ impl Resolver {
                     scope.borrow_mut().insert(name.to_string(), true);
                 }
 
-                self.scopes.push(Rc::new(RefCell::new(HashMap::new())));
-                for parameter in parameters.iter() {
-                    if let Some(scope) = self.scopes.last() {
-                        scope.borrow_mut().insert(parameter.to_string(), true);
-                    }
-                }
-
-                for stmt in body.iter() {
-                    self.resolve_stmt(stmt)?;
-                }
-
-                self.scopes.pop();
+                self.resolve_function(parameters, body, FnType::Standalone)?;
                 Ok(())
             }
-            Stmt::Return(expr) => {
-                self.resolve_expr(expr)?;
-                Ok(())
-            }
+            Stmt::Return(expr) => match self.fn_type {
+                FnType::None => Err(ResolveError::TopLevelReturn),
+                _ => {
+                    self.resolve_expr(expr)?;
+                    Ok(())
+                }
+            },
             Stmt::Class(name, methods) => {
                 if let Some(scope) = self.scopes.last() {
                     scope.borrow_mut().insert(name.to_string(), true);
+                }
+                for method in methods.iter() {
+                    match method {
+                        Stmt::Fn(_, parameters, body) => {
+                            self.resolve_function(parameters, body, FnType::Method)?;
+                        }
+                        _ => unreachable!("Parser guarantees this to be a function."),
+                    }
                 }
                 Ok(())
             }
@@ -181,5 +194,29 @@ impl Resolver {
         }
         // TODO: add line number
         Err(ResolveError::UnresolvedVariableOrFn(name.to_string()))
+    }
+
+    fn resolve_function(
+        &mut self,
+        parameters: &Rc<Vec<String>>,
+        body: &Rc<Vec<Stmt>>,
+        fn_type: FnType,
+    ) -> Result<(), ResolveError> {
+        let prev_fn_type = fn_type.clone();
+        self.fn_type = fn_type;
+        self.scopes.push(Rc::new(RefCell::new(HashMap::new())));
+        for parameter in parameters.iter() {
+            if let Some(scope) = self.scopes.last() {
+                scope.borrow_mut().insert(parameter.to_string(), true);
+            }
+        }
+
+        for stmt in body.iter() {
+            self.resolve_stmt(stmt)?;
+        }
+
+        self.scopes.pop();
+        self.fn_type = prev_fn_type;
+        Ok(())
     }
 }

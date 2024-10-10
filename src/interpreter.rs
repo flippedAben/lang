@@ -75,8 +75,8 @@ pub enum Value {
     ),
     NativeFunction(NativeFunction),
     None,
-    Class(String, Rc<Vec<Stmt>>),
-    Instance(Rc<Value>, Rc<RefCell<HashMap<String, Value>>>),
+    Class(String, Vec<Value>),
+    Instance(String, Vec<Value>, Rc<RefCell<HashMap<String, Value>>>),
 }
 
 impl fmt::Display for Value {
@@ -89,7 +89,7 @@ impl fmt::Display for Value {
             Value::Function(name, params, _, _) => write!(f, "<fn {}({:?})>", name, params),
             Value::NativeFunction(name) => write!(f, "<native fn {:?}(...)>", name),
             Value::Class(name, _) => write!(f, "<class {}>", name),
-            Value::Instance(class, _) => write!(f, "<instance of {}>", class),
+            Value::Instance(class_name, _, _) => write!(f, "<instance of {}>", class_name),
         }
     }
 }
@@ -134,7 +134,7 @@ impl Value {
                 Value::Class(other_name, _) => name == other_name,
                 _ => false,
             },
-            Value::Instance(_, _) => false, // TODO: when are two instances equal?
+            Value::Instance(_, _, _) => false, // TODO: when are two instances equal?
         }
     }
 }
@@ -276,11 +276,29 @@ pub fn interpret_stmt(
             let value = interpret_expr(expr, environment.clone(), out)?;
             return Err(RuntimeError::Return(value));
         }
-        Stmt::Class(name, methods) => {
-            environment.borrow_mut().map.insert(
-                name.to_string(),
-                Value::Class(name.to_string(), methods.clone()),
-            );
+        Stmt::Class(name, stmts) => {
+            environment
+                .borrow_mut()
+                .map
+                .insert(name.to_string(), Value::None);
+
+            let mut methods = Vec::new();
+            for stmt in stmts.iter() {
+                match stmt {
+                    Stmt::Fn(name, parameters, body) => methods.push(Value::Function(
+                        name.to_string(),
+                        parameters.clone(),
+                        body.clone(),
+                        environment.clone(),
+                    )),
+                    _ => unreachable!("Resolve guarantees this is a function."),
+                }
+            }
+
+            environment
+                .borrow_mut()
+                .map
+                .insert(name.to_string(), Value::Class(name.to_string(), methods));
         }
     }
     Ok(())
@@ -443,8 +461,9 @@ pub fn interpret_expr(
                         }
                     }
                 },
-                Value::Class(_, _) => Ok(Value::Instance(
-                    Rc::new(callee),
+                Value::Class(name, methods) => Ok(Value::Instance(
+                    name,
+                    methods,
                     Rc::new(RefCell::new(HashMap::new())),
                 )),
                 _ => Err(RuntimeError::CalledNoncallable),
@@ -453,9 +472,23 @@ pub fn interpret_expr(
         Expr::Get(instance, name) => {
             let instance = interpret_expr(instance, environment.clone(), out)?;
             match instance {
-                Value::Instance(_class, fields) => match fields.borrow().get(name) {
-                    Some(value) => Ok(value.clone()), // TODO: is clone right here?
-                    None => Err(RuntimeError::UndefinedInstanceProperty),
+                Value::Instance(class, methods, fields) => match fields.borrow().get(name) {
+                    Some(value) => Ok(value.clone()),
+                    None => {
+                        for method in methods.iter() {
+                            match method {
+                                Value::Function(method_name, _, _, _) => {
+                                    if name == method_name {
+                                        return Ok(method.clone());
+                                    }
+                                }
+                                _ => {
+                                    unreachable!("Interpreter guarantees this is a function.")
+                                }
+                            }
+                        }
+                        return Err(RuntimeError::UndefinedInstanceProperty);
+                    }
                 },
                 _ => Err(RuntimeError::GetOnNonInstance),
             }
@@ -463,9 +496,9 @@ pub fn interpret_expr(
         Expr::Set(instance, name, value) => {
             let instance = interpret_expr(instance, environment.clone(), out)?;
             match instance {
-                Value::Instance(_class, fields) => {
+                Value::Instance(class_name, methods, fields) => {
                     let value = interpret_expr(value, environment.clone(), out)?;
-                    fields.borrow_mut().insert(name.to_string(), value.clone()); // TODO: not sure about clone
+                    fields.borrow_mut().insert(name.to_string(), value.clone());
                     Ok(value)
                 }
                 _ => Err(RuntimeError::SetOnNonInstance),

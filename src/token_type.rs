@@ -33,7 +33,7 @@ pub enum TokenType {
     Fn,
     Return,
     Class,
-    This,
+    Myself,
     Super,
     And,
     Or,

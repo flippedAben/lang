@@ -154,6 +154,7 @@ let a = 0;
 // let a = "outer";
 // let a = a; // error
 
+// test classes, instance properties
 class Ingredient {
   fn egg() {
     print("egg");
@@ -178,3 +179,11 @@ ing.b = Ingredient();
 print(ing.b);
 ing.b.c = 5;
 print(ing.b.c);
+
+// test class methods
+let ing = Ingredient();
+ing.a = "y";
+ing.egg();
+ing.fish(ing.a);
+// egg
+// fish y

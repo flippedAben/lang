@@ -203,7 +203,7 @@ fn scan_token(
                 "fn" => TokenType::Fn,
                 "return" => TokenType::Return,
                 "class" => TokenType::Class,
-                "this" => TokenType::This,
+                "self" => TokenType::Myself,
                 "super" => TokenType::Super,
                 "and" => TokenType::And,
                 "or" => TokenType::Or,
