@@ -110,6 +110,12 @@ impl Resolver {
                 self.resolve_expr(expr)?;
                 Ok(())
             }
+            Stmt::Class(name, methods) => {
+                if let Some(scope) = self.scopes.last() {
+                    scope.borrow_mut().insert(name.to_string(), true);
+                }
+                Ok(())
+            }
         }
     }
 

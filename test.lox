@@ -150,6 +150,17 @@ let a = 0;
 // 2
 // 10
 
-print("=== can't assign variable to itself ===");
-let a = "outer";
-let a = a; // error
+// print("=== can't assign variable to itself ===");
+// let a = "outer";
+// let a = a; // error
+
+class Class {
+  fn hi() {
+    print("hi");
+  }
+
+  fn bye(who) {
+    print("bye " + who);
+  }
+}
+print(Class);

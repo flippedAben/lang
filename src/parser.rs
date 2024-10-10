@@ -1,4 +1,4 @@
-use crate::token::Token;
+use crate::token::{self, Token};
 use crate::token_type::TokenType;
 use core::{fmt, panic};
 use std::cell::RefCell;
@@ -125,6 +125,7 @@ pub enum Expr {
     Call(Box<Expr>, Vec<Expr>),
 }
 
+// TODO: should these be structs instead of enum?
 #[derive(Debug, Clone)]
 pub enum Stmt {
     Expression(Expr),
@@ -134,6 +135,7 @@ pub enum Stmt {
     While(Expr, Box<Stmt>),
     Fn(String, Rc<Vec<String>>, Rc<Vec<Stmt>>),
     Return(Box<Expr>),
+    Class(String, Rc<Vec<Stmt>>),
 }
 
 pub fn parse(tokens: Vec<Token>) -> Result<Vec<Stmt>, ParseError> {
@@ -284,6 +286,35 @@ fn parse_decl(tokens: &Vec<Token>, position: usize) -> Result<(Stmt, usize), Par
                     _ => panic!("Expect '(' after function name: {}", name),
                 },
                 _ => panic!("Expect function name after 'fn' keyword"),
+            }
+        }
+        TokenType::Class => {
+            assert!(position + 1 < tokens.len());
+            match &tokens[position + 1].token_type {
+                TokenType::Identifier(name) => match &tokens[position + 2].token_type {
+                    TokenType::LeftBrace => {
+                        let mut methods = Vec::new();
+                        let mut position = position + 3;
+                        loop {
+                            match &tokens[position].token_type {
+                                TokenType::RightBrace => {
+                                    return Ok((
+                                        Stmt::Class(name.to_owned(), Rc::new(methods)),
+                                        position + 1,
+                                    ));
+                                }
+                                TokenType::Fn => {
+                                    let (method, next_position) = parse_decl(tokens, position)?;
+                                    methods.push(method);
+                                    position = next_position;
+                                }
+                                _ => panic!("Only functions or '}}' allowed in class body"),
+                            }
+                        }
+                    }
+                    _ => panic!("Expected '{{' after 'class {}'", name),
+                },
+                _ => panic!("Expected name after 'class'"),
             }
         }
         _ => parse_stmt(tokens, position),

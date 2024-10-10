@@ -63,6 +63,7 @@ pub enum Value {
     ),
     NativeFunction(NativeFunction),
     None,
+    Class(String, Rc<Vec<Stmt>>),
 }
 
 impl fmt::Display for Value {
@@ -74,6 +75,7 @@ impl fmt::Display for Value {
             Value::None => write!(f, "nil"),
             Value::Function(name, params, _, _) => write!(f, "<fn {}({:?})>", name, params),
             Value::NativeFunction(name) => write!(f, "<native fn {:?}(...)>", name),
+            Value::Class(name, methods) => write!(f, "<class fn {}>", name),
         }
     }
 }
@@ -112,6 +114,10 @@ impl Value {
             },
             Value::NativeFunction(name) => match other {
                 Value::NativeFunction(other_name) => name == other_name,
+                _ => false,
+            },
+            Value::Class(name, _) => match other {
+                Value::Class(other_name, _) => name == other_name,
                 _ => false,
             },
         }
@@ -254,6 +260,12 @@ pub fn interpret_stmt(
         Stmt::Return(expr) => {
             let value = interpret_expr(expr, environment.clone(), out)?;
             return Err(RuntimeError::Return(value));
+        }
+        Stmt::Class(name, methods) => {
+            environment.borrow_mut().map.insert(
+                name.to_string(),
+                Value::Class(name.to_string(), methods.clone()),
+            );
         }
     }
     Ok(())
