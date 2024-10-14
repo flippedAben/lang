@@ -7,6 +7,7 @@ pub enum ResolveError {
     UnresolvedVariableOrFn(String),
     VariableInItsOwnInitializer(String),
     TopLevelReturn,
+    MeOutsideMethod,
     // TODO: ReturnOutsideFunction
 }
 
@@ -29,6 +30,9 @@ impl fmt::Display for ResolveError {
             ResolveError::TopLevelReturn => {
                 write!(f, "Cannot return from outside a function.",)
             }
+            ResolveError::MeOutsideMethod => {
+                write!(f, "Cannot use 'me' from outside a class method.",)
+            }
         }
     }
 }
@@ -41,7 +45,7 @@ pub fn resolve(program: &Vec<Stmt>) -> Result<(), ResolveError> {
     Ok(())
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum FnType {
     None,
     Standalone,
@@ -141,6 +145,7 @@ impl Resolver {
     }
 
     fn resolve_expr(&mut self, expr: &Expr) -> Result<(), ResolveError> {
+        // println!("{:?}", expr);
         match expr {
             Expr::Group(expr) => self.resolve_expr(expr),
             Expr::Unary(_, expr) => self.resolve_expr(expr),
@@ -189,10 +194,13 @@ impl Resolver {
                 self.resolve_expr(value)?;
                 Ok(())
             }
-            Expr::Me(name, semantic_depth) => {
-                *semantic_depth.borrow_mut() = Some(self.resolve_variable(name)?);
-                Ok(())
-            }
+            Expr::Me(name, semantic_depth) => match self.fn_type {
+                FnType::Method => {
+                    *semantic_depth.borrow_mut() = Some(self.resolve_variable(name)?);
+                    Ok(())
+                }
+                _ => Err(ResolveError::MeOutsideMethod),
+            },
         }
     }
 
@@ -214,7 +222,7 @@ impl Resolver {
         body: &Rc<Vec<Stmt>>,
         fn_type: FnType,
     ) -> Result<(), ResolveError> {
-        let prev_fn_type = fn_type.clone();
+        let prev_fn_type = self.fn_type.clone();
         self.fn_type = fn_type;
         self.scopes.push(Rc::new(RefCell::new(HashMap::new())));
         for parameter in parameters.iter() {
