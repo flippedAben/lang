@@ -187,3 +187,14 @@ ing.egg();
 ing.fish(ing.a);
 // egg
 // fish y
+
+// this/me in class methods
+class Cake {
+  fn taste() {
+    let adjective = "delicious";
+    print("The " + me.flavor + " cake is " + adjective + "!");
+  }
+}
+let cake = Cake();
+cake.flavor = "German chocolate";
+cake.taste(); // Prints "The German chocolate cake is delicious!".

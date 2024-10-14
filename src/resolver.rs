@@ -119,6 +119,12 @@ impl Resolver {
                 if let Some(scope) = self.scopes.last() {
                     scope.borrow_mut().insert(name.to_string(), true);
                 }
+
+                self.scopes.push(Rc::new(RefCell::new(HashMap::new())));
+                if let Some(scope) = self.scopes.last() {
+                    scope.borrow_mut().insert("me".to_string(), true); // TODO: me is hardcoded
+                }
+
                 for method in methods.iter() {
                     match method {
                         Stmt::Fn(_, parameters, body) => {
@@ -127,6 +133,8 @@ impl Resolver {
                         _ => unreachable!("Parser guarantees this to be a function."),
                     }
                 }
+
+                self.scopes.pop();
                 Ok(())
             }
         }
@@ -179,6 +187,10 @@ impl Resolver {
             Expr::Set(instance, _, value) => {
                 self.resolve_expr(instance)?;
                 self.resolve_expr(value)?;
+                Ok(())
+            }
+            Expr::Me(name, semantic_depth) => {
+                *semantic_depth.borrow_mut() = Some(self.resolve_variable(name)?);
                 Ok(())
             }
         }

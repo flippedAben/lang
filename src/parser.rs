@@ -129,6 +129,7 @@ pub enum Expr {
     Call(Box<Expr>, Vec<Expr>),
     Get(Rc<Expr>, String),
     Set(Rc<Expr>, String, Rc<Expr>),
+    Me(String, RefCell<Option<usize>>),
 }
 
 // TODO: should these be structs instead of enum?
@@ -688,6 +689,10 @@ fn parse_primary(tokens: &Vec<Token>, position: usize) -> Result<(Expr, usize), 
         }
         TokenType::Identifier(name) => Ok((
             Expr::Variable(name.to_string(), RefCell::new(None)),
+            position + 1,
+        )),
+        TokenType::Me => Ok((
+            Expr::Me(tokens[position].lexeme.to_string(), RefCell::new(None)),
             position + 1,
         )),
         TokenType::Eof => Err(ParseError::UnexpectedEof(tokens[position].line)),

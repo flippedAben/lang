@@ -471,15 +471,26 @@ pub fn interpret_expr(
         }
         Expr::Get(instance, name) => {
             let instance = interpret_expr(instance, environment.clone(), out)?;
-            match instance {
+            match instance.clone() {
                 Value::Instance(class, methods, fields) => match fields.borrow().get(name) {
                     Some(value) => Ok(value.clone()),
                     None => {
                         for method in methods.iter() {
                             match method {
-                                Value::Function(method_name, _, _, _) => {
+                                Value::Function(method_name, params, body, closure) => {
                                     if name == method_name {
-                                        return Ok(method.clone());
+                                        let method_closure =
+                                            Environment::new(Some(closure.clone()));
+                                        method_closure
+                                            .borrow_mut()
+                                            .map
+                                            .insert("me".to_string(), instance);
+                                        return Ok(Value::Function(
+                                            method_name.to_string(),
+                                            params.clone(),
+                                            body.clone(),
+                                            method_closure,
+                                        ));
                                     }
                                 }
                                 _ => {
@@ -504,5 +515,13 @@ pub fn interpret_expr(
                 _ => Err(RuntimeError::SetOnNonInstance),
             }
         }
+        Expr::Me(name, semantic_depth) => match semantic_depth.borrow().as_ref() {
+            Some(depth) => {
+                let env = environment.borrow();
+                let value = env.get_at(name, *depth);
+                Ok(value)
+            }
+            None => unreachable!("Resolver guarantees variable is resolved."),
+        },
     }
 }
